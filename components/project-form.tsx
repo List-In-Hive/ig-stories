@@ -91,6 +91,10 @@ export default function ProjectForm({
       });
       setForm((f) => ({ ...f, ...brief, logoId: f.logoId, status: f.status }));
       setDrafted(true);
+      if (!brief.name || !brief.description)
+        setQuickError(
+          'The AI could not find the business name or description. Add the website, or type them below.',
+        );
     } catch (e) {
       setQuickError((e as Error).message);
     } finally {
@@ -103,6 +107,11 @@ export default function ProjectForm({
     const changed = JSON.stringify(form) !== initial || photos.length > 0;
     if (changed && !window.confirm('Close without saving? Your changes will be lost.')) return;
     onClose();
+  }
+  function draftOnEnter(e: React.KeyboardEvent) {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    if (!drafting) void draft();
   }
   function update(key: string, value: unknown) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -150,6 +159,17 @@ export default function ProjectForm({
   }
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    // The required fields live on the Brief tab; point there instead of failing on the server.
+    const missing = [
+      form.name.trim().length < 2 && 'project name',
+      form.industry.trim().length < 2 && 'industry',
+      form.description.trim().length < 10 && 'business description (10+ characters)',
+    ].filter(Boolean);
+    if (missing.length) {
+      setTab('Brief');
+      setError(`Fill in the ${missing.join(', ')} on the Brief tab.`);
+      return;
+    }
     setBusy(true);
     setError('');
     try {
@@ -217,12 +237,14 @@ export default function ProjectForm({
                     <input
                       value={quick.handle}
                       placeholder="@instagram_handle"
+                      onKeyDown={draftOnEnter}
                       autoCapitalize="none"
                       onChange={(e) => setQuick((q) => ({ ...q, handle: e.target.value }))}
                     />
                     <input
                       value={quick.website}
                       placeholder="brand-website.com"
+                      onKeyDown={draftOnEnter}
                       inputMode="url"
                       autoCapitalize="none"
                       onChange={(e) => setQuick((q) => ({ ...q, website: e.target.value }))}
