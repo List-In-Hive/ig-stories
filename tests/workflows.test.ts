@@ -527,11 +527,22 @@ test('actual route authorization, administrator controls, approved exports, and 
   );
   const adminSession = auth.localAuth.signIn('admin', '9741faso');
   const headers = { 'Content-Type': 'application/json', cookie: `storyloom=${adminSession.token}` };
-  const png = await download(new Request(anonymous, { headers }), {
-    params: Promise.resolve({ version: story.latestVersionId }),
-  });
-  assert.equal(png.status, 200);
+  const get = () =>
+    download(new Request(anonymous, { headers }), {
+      params: Promise.resolve({ version: story.latestVersionId }),
+    });
+  // Downloads default to high-quality JPEG; PNG stays available as a setting.
+  const jpeg = await get();
+  assert.equal(jpeg.status, 200);
+  assert.equal(jpeg.headers.get('Content-Type'), 'image/jpeg');
+  assert.match(jpeg.headers.get('Content-Disposition')!, /_v\d+\.jpg/);
+  const jpegMeta = await sharp(Buffer.from(await jpeg.arrayBuffer())).metadata();
+  assert.deepEqual([jpegMeta.format, jpegMeta.width, jpegMeta.height], ['jpeg', 1080, 1920]);
+  store.setSetting('exportFormat', 'png');
+  const png = await get();
+  assert.equal(png.headers.get('Content-Type'), 'image/png');
   assert.match(png.headers.get('Content-Disposition')!, /_v\d+\.png/);
+  store.setSetting('exportFormat', 'jpeg');
   const zipped = await zipExport(
     new Request('http://localhost:3000/api/export', {
       method: 'POST',
@@ -543,7 +554,7 @@ test('actual route authorization, administrator controls, approved exports, and 
   const zip = await JSZip.loadAsync(await zipped.arrayBuffer());
   const files = Object.keys(zip.files);
   assert.equal(files.length, 1);
-  assert.match(files[0], /story-.*_v\d+\.png/);
+  assert.match(files[0], /story-.*_v\d+\.jpg/);
   const denied = await commandRoute(
     new Request('http://localhost:3000/api/command', {
       method: 'POST',

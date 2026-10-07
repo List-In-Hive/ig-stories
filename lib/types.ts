@@ -141,6 +141,7 @@ export type AppState = {
     missingKeys: string[];
     automationEnabled: boolean;
     timeZone: string;
+    exportFormat: 'jpeg' | 'png';
   };
   worker: { online: boolean; heartbeat: string | null; nextRun: string };
   today: string;

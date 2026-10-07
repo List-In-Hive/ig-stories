@@ -1,8 +1,7 @@
 import JSZip from 'jszip';
 import { z } from 'zod';
 import { exportVersion, recordExport } from '@/lib/services';
-import { renderPng } from '@/lib/composition';
-import { filename } from '@/lib/export';
+import { filename, renderStory } from '@/lib/export';
 import { authenticated, failure, sameOrigin, noCache } from '@/lib/http';
 export const runtime = 'nodejs';
 export async function POST(request: Request) {
@@ -14,7 +13,10 @@ export async function POST(request: Request) {
       .parse(await request.json());
     const versions = [...new Set(versionIds)].map(exportVersion);
     const zip = new JSZip();
-    for (const version of versions) zip.file(filename(version), renderPng(version.data));
+    for (const version of versions) {
+      const image = await renderStory(version.data);
+      zip.file(filename(version, image.extension), image.bytes);
+    }
     const bytes = await zip.generateAsync({ type: 'nodebuffer' });
     for (const version of versions) recordExport(version, user.id, 'zip');
     return new Response(new Uint8Array(bytes), {
