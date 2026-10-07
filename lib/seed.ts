@@ -75,7 +75,24 @@ export async function seed() {
     });
   }
   const { listProjects } = await import('./services');
-  for (const p of listProjects()) enqueueRun(p.id, 'scheduled');
+  // Sample drafts always use the free demo providers, even when live AI keys are configured.
+  const mode = setting('providerMode', '');
+  setSetting('providerMode', 'demo');
+  try {
+    await generateSamples(listProjects().map((p) => p.id));
+  } finally {
+    if (mode) setSetting('providerMode', mode);
+    else run("DELETE FROM settings WHERE key='providerMode'");
+  }
+  for (const p of listProjects()) {
+    const story = listStories().find((s) => s.projectId === p.id);
+    if (story) approve([{ storyId: story.id, versionId: story.latestVersionId }], adminId);
+  }
+  setSetting('seeded', 'true');
+  console.log('Seeded three fictional projects, approved drafts, and one retryable failed slot.');
+}
+async function generateSamples(projectIds: string[]) {
+  for (const projectId of projectIds) enqueueRun(projectId, 'scheduled');
   let counter = 0;
   while (true) {
     const job = claimJob();
@@ -86,10 +103,4 @@ export async function seed() {
       await processJob({ ...job, attempts: 3 }, new Date(), true);
     } else await processJob(job);
   }
-  for (const p of listProjects()) {
-    const story = listStories().find((s) => s.projectId === p.id);
-    if (story) approve([{ storyId: story.id, versionId: story.latestVersionId }], adminId);
-  }
-  setSetting('seeded', 'true');
-  console.log('Seeded three fictional projects, approved drafts, and one retryable failed slot.');
 }
