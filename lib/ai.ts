@@ -164,6 +164,8 @@ export type PlanContext = {
   approved: string[];
   skipped: string[];
   feedback: string[];
+  // An admin's own prompt for this one story, from the editor.
+  direction?: string;
 };
 const list = (items: string[]) => (items.length ? items.map((i) => `- ${i}`).join('\n') : 'none');
 function planPrompt(project: Project, count: number, recent: string[], context: PlanContext) {
@@ -191,7 +193,11 @@ ${
   research
     ? `First use web search to find a few timely, relevant angles for this brand: things happening this week in its location, seasonal moments, or recent news and trends in its industry. Skip anything unrelated to the brand or its audience.\n\n`
     : ''
-}Write ${count} stories for today with ${count} clearly different topics. Vary the angles: for example a useful tip, a timely hook, a product or service highlight, and a brand moment.`;
+}${
+    context.direction
+      ? `Write ${count === 1 ? 'one story' : `${count} stories`} that follows this request from the brand's admin closely, while keeping the brand rules above:\n${context.direction}`
+      : `Write ${count} stories for today with ${count} clearly different topics. Vary the angles: for example a useful tip, a timely hook, a product or service highlight, and a brand moment.`
+  }`;
 }
 
 // ChatGPT reviews Claude's drafts as an independent editor.
@@ -300,7 +306,7 @@ export const claudeScripts = {
     assertLiveConfigured();
     const { output } = await parse(
       visualSchema,
-      `Brand brief:\n${brief(project)}\n\nCurrent image prompt:\n${script.visual}\n\nWrite a new image prompt that applies this reviewer feedback:\n${feedback}`,
+      `Brand brief:\n${brief(project)}\n\nCurrent image prompt:\n${script.visual}\n\nWrite a new image prompt that applies this direction from the brand's admin. Follow it closely; keep the brand's look only where the direction leaves room:\n${feedback}`,
     );
     return output.visual;
   },

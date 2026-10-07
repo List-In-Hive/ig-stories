@@ -35,6 +35,7 @@ import type {
   Project,
   Repository,
   Run,
+  Layout,
   Script,
   Snapshot,
   Story,
@@ -352,8 +353,17 @@ function planContext(project: Project, at = new Date()): PlanContext {
     feedback: JSON.parse(setting(`taste:feedback:${project.id}`, '[]')),
   };
 }
-async function generateScript(project: Project, slot: number, seed: number, recent: string[]) {
-  if (liveMode()) return (await claudeScripts.plan(project, 1, recent, planContext(project)))[0];
+async function generateScript(
+  project: Project,
+  slot: number,
+  seed: number,
+  recent: string[],
+  direction?: string,
+) {
+  if (liveMode())
+    return (
+      await claudeScripts.plan(project, 1, recent, { ...planContext(project), direction })
+    )[0];
   return demoScript.generate(project, slot, seed, recent);
 }
 function providerDetails() {
@@ -364,12 +374,18 @@ function providerDetails() {
       }
     : { provider: 'demo' as const, label: 'Demo content · Sample artwork' };
 }
-export async function makeSnapshot(project: Project, slot: number, seed: number, manual?: Script) {
+export async function makeSnapshot(
+  project: Project,
+  slot: number,
+  seed: number,
+  manual?: Script,
+  direction?: string,
+) {
   const recent = listStories()
     .filter((s) => s.projectId === project.id)
     .slice(0, 12)
     .map((s) => s.version.data.script.topic);
-  const script = manual || (await generateScript(project, slot, seed, recent));
+  const script = manual || (await generateScript(project, slot, seed, recent, direction));
   assertEngagementAllowed(project, script);
   const image = await imageProvider().generate(project, script, seed);
   return transaction(() => {
@@ -715,9 +731,14 @@ export function saveStory(storyId: string, expected: string, input: unknown, use
 export async function reviseStory(
   storyId: string,
   expected: string,
-  kind: 'image' | 'idea',
+  kind: 'image' | 'idea' | 'text',
   userId: string,
+  prompt = '',
 ) {
+  prompt = prompt.trim();
+  if (prompt.length > 2000) throw new AppError('Keep the prompt under 2,000 characters.');
+  if (kind === 'text' && !liveMode())
+    throw new AppError('Rewriting text from a prompt needs Live AI. Switch it on in Settings.');
   const story = checkVersion(storyId, expected);
   const operationId = id();
   run(
@@ -735,21 +756,48 @@ export async function reviseStory(
     if (seed % 200 === current.seed % 200) seed++;
     let snapshot: Snapshot;
     if (kind === 'idea') {
-      snapshot = await makeSnapshot(getProject(story.projectId), 0, seed);
-      if (snapshot.script.topic === current.script.topic) {
-        snapshot = await makeSnapshot(getProject(story.projectId), 1, seed + 1);
+      const project = getProject(story.projectId);
+      snapshot = await makeSnapshot(project, 0, seed, undefined, prompt || undefined);
+      if (!prompt && snapshot.script.topic === current.script.topic) {
+        snapshot = await makeSnapshot(project, 1, seed + 1);
       }
+      snapshot.layout = withText(current.layout, snapshot.layout);
+    } else if (kind === 'text') {
+      const script = await claudeScripts.rewrite(
+        current.project,
+        current.script,
+        prompt || 'Write a fresh version of this story with a different hook.',
+      );
+      snapshot = {
+        ...structuredClone(current),
+        script,
+        layout: withText(current.layout, {
+          ...current.layout,
+          headline: { ...current.layout.headline, text: script.headline },
+          body: { ...current.layout.body, text: script.body },
+          cta: { ...current.layout.cta, text: script.cta },
+        }),
+      };
     } else {
-      const image = await imageProvider().generate(current.project, current.script, seed);
+      const visual =
+        prompt && liveMode()
+          ? await claudeScripts.revisualize(current.project, current.script, prompt)
+          : prompt
+            ? `${current.script.visual}\nAdmin prompt: ${prompt}`
+            : current.script.visual;
+      const script = { ...current.script, visual };
+      const image = await imageProvider().generate(current.project, script, seed);
       snapshot = {
         ...structuredClone(current),
         ...providerDetails(),
+        script,
         backgroundId: storeProjectBackground(story.projectId, image),
         seed,
-        prompt: current.script.visual,
+        prompt: visual,
       };
       setSetting('demoImageOperations', String(Number(setting('demoImageOperations', '0')) + 1));
     }
+    if (prompt) remember(story.projectId, 'feedback', `${kind}: ${prompt.slice(0, 300)}`);
     const version = appendVersion(storyId, snapshot, userId, expected);
     run("UPDATE operations SET status='complete' WHERE id=?", operationId);
     return version;
@@ -761,6 +809,14 @@ export async function reviseStory(
     );
     throw error;
   }
+}
+// New copy keeps the admin's design: fonts, colors, sizes and positions stay as they were.
+function withText(design: Layout, next: Layout): Layout {
+  const layout = structuredClone(design);
+  for (const key of ['headline', 'body', 'cta'] as const) {
+    layout[key] = { ...design[key], text: next[key].text, visible: !!next[key].text };
+  }
+  return layout;
 }
 export async function requestChanges(
   storyId: string,

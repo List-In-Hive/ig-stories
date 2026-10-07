@@ -1943,6 +1943,31 @@ textarea {
   color: var(--purple);
   text-align: left;
 }
+.regenerate-box {
+  width: 100%;
+  max-width: 460px;
+  display: grid;
+  gap: 10px;
+  margin-top: 6px;
+}
+.regenerate-box label {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink, #172420);
+}
+.regenerate-box textarea {
+  width: 100%;
+  resize: vertical;
+}
+.regenerate-box .artwork-actions {
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.regenerate-box small {
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+}
 .stage-caption {
   font-size: 11px;
   color: #836a98;

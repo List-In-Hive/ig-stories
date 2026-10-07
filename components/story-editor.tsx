@@ -98,6 +98,7 @@ export default function StoryEditor({
   const [feedback, setFeedback] = useState('');
   const [target, setTarget] = useState('text');
   const [safeArea, setSafeArea] = useState(false);
+  const [prompt, setPrompt] = useState('');
   const dirty = JSON.stringify(layout) !== JSON.stringify(base.data.layout);
   const conflict = story.latestVersionId !== base.id;
   useEffect(() => {
@@ -173,19 +174,23 @@ export default function StoryEditor({
       setBusy('');
     }
   }
-  async function revise(kind: 'image' | 'idea') {
+  async function revise(kind: 'image' | 'idea' | 'text') {
     setBusy(kind);
     try {
       const version = await command<Version>('revise', {
         storyId: story.id,
         expected: base.id,
         kind,
+        prompt,
       });
       accept(version);
+      setPrompt('');
       notify(
-        kind === 'image'
-          ? 'New sample artwork saved. Your script was retained.'
-          : 'A new topic, script, and artwork were saved.',
+        {
+          image: 'New image saved as a draft. Your text was kept.',
+          text: 'New text saved as a draft. Your image was kept.',
+          idea: 'A new story, text and image, was saved as a draft.',
+        }[kind],
       );
     } catch {
       // The shared command handler already displayed the server error.
@@ -694,25 +699,51 @@ export default function StoryEditor({
               ))}
             </div>
           )}
-          <div className="artwork-actions">
-            <Button
-              variant="secondary"
-              busy={busy === 'image'}
-              disabled={blocked}
-              onClick={() => void revise('image')}
-            >
-              <RefreshCw size={15} />
-              Regenerate image
-            </Button>
-            <Button
-              variant="secondary"
-              busy={busy === 'idea'}
-              disabled={blocked}
-              onClick={() => void revise('idea')}
-            >
-              <Sparkles size={15} />
-              New idea
-            </Button>
+          <div className="regenerate-box">
+            <label htmlFor="regen-prompt">Regenerate with your prompt</label>
+            <textarea
+              id="regen-prompt"
+              rows={3}
+              maxLength={2000}
+              value={prompt}
+              disabled={!!busy}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder="Optional. e.g. A latte on a sunny windowsill, morning light. Or: make it about our new pumpkin latte."
+            />
+            <div className="artwork-actions">
+              <Button
+                variant="secondary"
+                busy={busy === 'image'}
+                disabled={blocked}
+                onClick={() => void revise('image')}
+              >
+                <RefreshCw size={15} />
+                New image
+              </Button>
+              <Button
+                variant="secondary"
+                busy={busy === 'text'}
+                disabled={blocked}
+                onClick={() => void revise('text')}
+              >
+                <Type size={15} />
+                New text
+              </Button>
+              <Button
+                variant="secondary"
+                busy={busy === 'idea'}
+                disabled={blocked}
+                onClick={() => void revise('idea')}
+              >
+                <Sparkles size={15} />
+                New story
+              </Button>
+            </div>
+            <small>
+              {prompt.trim()
+                ? 'Your prompt guides the result. Your design (fonts, colors, positions) is kept.'
+                : 'Leave it empty for a fresh take. Your design (fonts, colors, positions) is kept.'}
+            </small>
           </div>
           {dirty && (
             <small className="muted center">

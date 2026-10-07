@@ -119,8 +119,9 @@ export async function POST(request: Request) {
         result = await reviseStory(
           z.string().parse(body.storyId),
           z.string().parse(body.expected),
-          z.enum(['image', 'idea']).parse(body.kind),
+          z.enum(['image', 'idea', 'text']).parse(body.kind),
           user.id,
+          z.string().max(2000).optional().parse(body.prompt),
         );
         break;
       case 'feedback':

@@ -141,6 +141,51 @@ test('live text feedback is rewritten by Claude as a new draft', async () => {
   assert.equal(next.version.data.script.cta, 'Stop by');
 });
 
+test('regenerating with an admin prompt guides Claude and keeps the story design', async () => {
+  let current = service.listStories().find((s) => s.projectId === project.id)!;
+  const layout = structuredClone(current.version.data.layout);
+  layout.headline = { ...layout.headline, color: '#ffffff', bold: false, size: 70 };
+  const designed = service.saveStory(current.id, current.latestVersionId, layout, admin.id);
+
+  requests.length = 0;
+  replies = [{ stories: [story('Pumpkin latte')] }];
+  const idea = await service.reviseStory(
+    current.id,
+    designed.id,
+    'idea',
+    admin.id,
+    'Make it about our new pumpkin latte',
+  );
+  assert.match(requests[0].prompt, /Make it about our new pumpkin latte/);
+  assert.equal(idea.data.script.topic, 'Pumpkin latte');
+  assert.equal(idea.data.layout.headline.text, 'Pumpkin latte today');
+  assert.equal(idea.data.layout.headline.color, '#ffffff', 'the admin design is kept');
+  assert.equal(idea.data.layout.headline.size, 70);
+
+  requests.length = 0;
+  const images = imageCalls;
+  replies = [{ visual: 'A pumpkin latte on a sunny windowsill' }];
+  const image = await service.reviseStory(
+    current.id,
+    idea.id,
+    'image',
+    admin.id,
+    'A latte on a sunny windowsill',
+  );
+  assert.match(requests[0].prompt, /A latte on a sunny windowsill/);
+  assert.equal(imageCalls, images + 1);
+  assert.equal(image.data.prompt, 'A pumpkin latte on a sunny windowsill');
+  assert.equal(image.data.layout.headline.text, 'Pumpkin latte today');
+
+  replies = [{ headline: 'Fall in a cup', body: 'Pumpkin spice is back.', cta: 'Try it today' }];
+  const text = await service.reviseStory(current.id, image.id, 'text', admin.id, 'Shorter');
+  assert.equal(text.data.layout.headline.text, 'Fall in a cup');
+  assert.equal(text.data.layout.headline.color, '#ffffff');
+  assert.equal(text.data.backgroundId, image.data.backgroundId, 'new text keeps the image');
+  current = service.getStory(current.id);
+  assert.equal(current.latestVersionId, text.id);
+});
+
 test('live mode without API keys fails clearly instead of falling back to demo', async () => {
   const key = process.env.OPENAI_API_KEY;
   delete process.env.OPENAI_API_KEY;
