@@ -158,11 +158,13 @@ export async function POST(request: Request) {
             providerMode: z.enum(['demo', 'live']),
             automationEnabled: z.boolean(),
             timeZone: z.string().refine(isTimeZone, 'Choose a valid time zone.').optional(),
+            exportFormat: z.enum(['jpeg', 'png']).optional(),
           })
           .parse(body.settings);
         setSetting('providerMode', parsed.providerMode);
         setSetting('automationEnabled', String(parsed.automationEnabled));
         if (parsed.timeZone) setSetting('timeZone', parsed.timeZone);
+        if (parsed.exportFormat) setSetting('exportFormat', parsed.exportFormat);
         result = { ok: true };
         break;
       }

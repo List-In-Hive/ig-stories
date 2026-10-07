@@ -927,6 +927,8 @@ export function state(user: User): AppState {
       missingKeys: missingLiveKeys(),
       automationEnabled: setting('automationEnabled', 'true') === 'true',
       timeZone: timeZone(),
+      exportFormat:
+        setting('exportFormat', process.env.EXPORT_FORMAT || 'jpeg') === 'png' ? 'png' : 'jpeg',
     },
     worker: {
       online: !!heartbeat && Date.now() - Date.parse(heartbeat) < 45000,

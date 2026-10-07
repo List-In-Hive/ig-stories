@@ -429,7 +429,7 @@ export default function Workspace() {
             </p>
             <p>
               <strong>4. Approve and download.</strong> Download the exact approved version as a
-              1080 × 1920 PNG, then post manually.
+              1080 × 1920 image, then post manually.
             </p>
             <div className="soft-note">
               {state.settings.providerMode === 'live'
@@ -1594,6 +1594,7 @@ function SettingsPage({
   const [provider, setProvider] = useState(state.settings.providerMode);
   const [enabled, setEnabled] = useState(state.settings.automationEnabled);
   const [zone, setZone] = useState(state.settings.timeZone);
+  const [format, setFormat] = useState(state.settings.exportFormat);
   const zones = useMemo(() => {
     const all = Intl.supportedValuesOf('timeZone');
     return all.includes(zone) ? all : [zone, ...all];
@@ -1603,7 +1604,12 @@ function SettingsPage({
     setBusy(true);
     try {
       await command('settings', {
-        settings: { providerMode: provider, automationEnabled: enabled, timeZone: zone },
+        settings: {
+          providerMode: provider,
+          automationEnabled: enabled,
+          timeZone: zone,
+          exportFormat: format,
+        },
       });
       notify('Workspace settings saved.');
     } catch {
@@ -1776,6 +1782,15 @@ function SettingsPage({
                     {z.replaceAll('_', ' ')}
                   </option>
                 ))}
+              </select>
+            </Field>
+            <Field
+              label="Download format"
+              hint="JPEG looks the same once Instagram recompresses it and is about five times smaller. PNG is lossless for designers."
+            >
+              <select value={format} onChange={(e) => setFormat(e.target.value as 'jpeg' | 'png')}>
+                <option value="jpeg">JPEG, high quality (recommended)</option>
+                <option value="png">PNG, lossless</option>
               </select>
             </Field>
             <label className="switch-row">

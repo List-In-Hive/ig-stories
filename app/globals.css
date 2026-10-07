@@ -49,7 +49,7 @@
 }
 :root {
   --ink: #131324;
-  --muted: #75758b;
+  --muted: #5d5d72;
   --purple: #2525e0;
   --purple-dark: #1c1caf;
   --purple-light: #ededff;
@@ -63,8 +63,8 @@
 }
 body {
   margin: 0;
-  font-family: Montserrat, Inter, Arial, sans-serif;
-  font-size: 13px;
+  font-family: Inter, Arial, sans-serif;
+  font-size: 15px;
   line-height: 1.6;
   color: var(--ink);
   background: var(--bg);
@@ -105,6 +105,10 @@ h4,
 p {
   margin: 0;
 }
+h1,
+h2 {
+  font-family: Montserrat, Inter, Arial, sans-serif;
+}
 h1 {
   font-size: 29px;
   line-height: 1.35;
@@ -117,15 +121,15 @@ h2 {
   letter-spacing: -0.4px;
 }
 h3 {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
 }
 h4 {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 700;
 }
 small {
-  font-size: 11px;
+  font-size: 13px;
 }
 .muted {
   color: var(--muted);
@@ -137,7 +141,7 @@ small {
   text-align: center;
 }
 .eyebrow {
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 700;
   letter-spacing: 1.9px;
   color: var(--muted);
@@ -161,7 +165,7 @@ small {
   border: 1px solid transparent;
   border-radius: 7px;
   padding: 10px 15px;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   line-height: 1.5;
   white-space: nowrap;
@@ -200,7 +204,7 @@ small {
 }
 .btn.small {
   padding: 7px 9px;
-  font-size: 11px;
+  font-size: 13px;
 }
 .btn.disabled {
   opacity: 0.5;
@@ -216,7 +220,7 @@ small {
   place-items: center;
   padding: 8px;
   border-radius: 6px;
-  color: #7a7e92;
+  color: #707488;
 }
 .icon-btn:hover {
   background: var(--purple-light);
@@ -226,7 +230,7 @@ small {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--purple);
   padding: 4px 0;
@@ -238,8 +242,8 @@ small {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
-  color: #8e8b9e;
+  font-size: 13px;
+  color: #767289;
   margin-bottom: 15px;
 }
 .badge {
@@ -249,11 +253,11 @@ small {
   border-radius: 5px;
   line-height: 1.5;
   padding: 4px 7px;
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.1px;
   background: #f2f2f6;
-  color: #9394a4;
+  color: #727388;
   white-space: nowrap;
 }
 .badge i {
@@ -264,18 +268,18 @@ small {
 }
 .badge.draft {
   background: #fff4df;
-  color: #bc913c;
+  color: #91702e;
 }
 .badge.approved,
 .badge.active,
 .badge.connected,
 .badge.complete {
   background: #eaf5ef;
-  color: #579778;
+  color: #497f65;
 }
 .badge.failed {
   background: #fff0ed;
-  color: #c57261;
+  color: #b95844;
 }
 .badge.paused,
 .badge.queued {
@@ -283,19 +287,19 @@ small {
   color: #2525e0;
 }
 .badge.running {
-  color: #667bbb;
+  color: #5b72b6;
   background: #edf1fc;
 }
 .badge.unavailable,
 .badge.offline,
 .badge.disconnected {
-  color: #aa8e6b;
+  color: #8b7050;
   background: #f8f2e9;
 }
 .count-pill {
-  font-size: 10px;
+  font-size: 13px;
   background: #eeeef5;
-  color: #7f8099;
+  color: #72738f;
   padding: 2px 7px;
   border-radius: 5px;
   letter-spacing: 0;
@@ -343,10 +347,10 @@ small {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 1.5px;
-  color: #a3a2b2;
+  color: #737289;
   padding: 0 13px;
   margin: 38px 0 12px;
 }
@@ -363,8 +367,8 @@ small {
   height: 43px;
   padding: 0 13px;
   border-radius: 7px;
-  color: #85879b;
-  font-size: 12px;
+  color: #707389;
+  font-size: 14px;
   font-weight: 700;
 }
 .sidebar nav button:hover {
@@ -379,7 +383,7 @@ small {
   background: #dcf46b;
   border-radius: 4px;
   padding: 1px 6px;
-  font-size: 10px;
+  font-size: 13px;
 }
 .sidebar-projects > .sidebar-section-label {
   margin-top: 29px;
@@ -391,8 +395,8 @@ small {
   width: 100%;
   text-align: left;
   padding: 10px 13px;
-  font-size: 11px;
-  color: #9292a4;
+  font-size: 13px;
+  color: #727289;
   border-radius: 6px;
 }
 .sidebar-projects > button:hover,
@@ -424,20 +428,20 @@ small {
   color: var(--purple);
 }
 .demo-box strong {
-  font-size: 10px;
+  font-size: 13px;
   display: block;
 }
 .demo-box small {
   display: block;
   color: #5c5c80;
-  font-size: 9px;
+  font-size: 12px;
 }
 .collapse-button {
   display: flex;
   align-items: center;
   gap: 10px;
   color: #73738c;
-  font-size: 10px;
+  font-size: 13px;
   margin-top: 22px;
   padding: 4px 12px;
 }
@@ -493,12 +497,12 @@ small {
   display: flex;
   align-items: center;
   gap: 11px;
-  color: #b0aebc;
-  font-size: 11px;
+  color: #76728a;
+  font-size: 13px;
 }
 .breadcrumb strong {
   font-weight: 400;
-  color: #787a90;
+  color: #71738a;
 }
 .topbar-tools {
   display: flex;
@@ -510,17 +514,17 @@ small {
   align-items: center;
   gap: 9px;
   position: relative;
-  color: #a5a4b4;
+  color: #73728a;
 }
 .global-search input {
   width: 160px;
   border: 0;
   padding: 4px 0;
   background: transparent;
-  font-size: 11px;
+  font-size: 13px;
 }
 .global-search input::placeholder {
-  color: #a5a4b4;
+  color: #8f8ea2;
 }
 .search-results {
   position: absolute;
@@ -552,7 +556,7 @@ small {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 700;
   flex-shrink: 0;
 }
@@ -574,8 +578,8 @@ small {
   margin-bottom: 9px;
 }
 .page-heading p {
-  color: #9290a3;
-  font-size: 12px;
+  color: #747289;
+  font-size: 14px;
   margin-top: 8px;
   max-width: 690px;
 }
@@ -600,11 +604,11 @@ small {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  color: #8b8b9f;
-  font-size: 11px;
+  color: #73738b;
+  font-size: 13px;
 }
 .stat-card i {
-  color: #a6a2b5;
+  color: #77708d;
 }
 .stat-card strong {
   display: block;
@@ -615,8 +619,8 @@ small {
   margin-top: 4px;
 }
 .stat-card small {
-  color: #aaa8b9;
-  font-size: 9px;
+  color: #74718d;
+  font-size: 12px;
 }
 .stat-card.accent {
   border-color: #d9d9fa;
@@ -644,11 +648,11 @@ small {
   line-height: 0;
 }
 .daily-banner strong {
-  font-size: 12px;
+  font-size: 14px;
   color: #131324;
 }
 .daily-banner p {
-  font-size: 10px;
+  font-size: 13px;
   color: #686886;
   margin-top: 2px;
 }
@@ -658,7 +662,7 @@ small {
 }
 .daily-banner-end small {
   display: block;
-  font-size: 9px;
+  font-size: 12px;
   color: #73738c;
   margin-top: 5px;
 }
@@ -669,7 +673,7 @@ small {
   border: 1px solid #d9d9fa;
   border-radius: 5px;
   color: #5c5c80;
-  font-size: 9px;
+  font-size: 12px;
   padding: 3px 6px;
   background: white;
 }
@@ -706,10 +710,10 @@ small {
 }
 .filter-controls select,
 .filter-controls input {
-  font-size: 10px;
+  font-size: 13px;
   height: 32px;
   padding: 5px 10px;
-  color: #898699;
+  color: #757287;
   border-radius: 6px;
   background: #fff;
   border: 1px solid var(--border);
@@ -719,8 +723,8 @@ small {
   display: flex;
   align-items: center;
   gap: 7px;
-  color: #a9a3b4;
-  font-size: 9px;
+  color: #7a718a;
+  font-size: 12px;
   margin: 0 0 19px;
 }
 .project-story-section {
@@ -746,23 +750,23 @@ small {
   display: flex;
   align-items: center;
   gap: 5px;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   padding: 0;
 }
 .project-story-heading > div > span {
-  font-size: 9px;
-  color: #aaa4b1;
+  font-size: 12px;
+  color: #797183;
   display: block;
   margin-top: 1px;
 }
 .project-story-heading > .muted {
-  font-size: 9px;
+  font-size: 12px;
   margin-right: 10px;
 }
 .project-story-heading > .text-button {
-  font-size: 10px;
-  color: #a297b2;
+  font-size: 13px;
+  color: #7d6e94;
   font-weight: 400;
 }
 .stories-grid {
@@ -824,7 +828,7 @@ small {
   cursor: pointer;
 }
 .preview-top span {
-  font-size: 8px;
+  font-size: 11px;
   letter-spacing: 1px;
   color: #746855;
   background: #ffffff94;
@@ -845,7 +849,7 @@ small {
   bottom: 9px;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 6px;
+  font-size: 10px;
   letter-spacing: 1.1px;
   color: #655a507c;
   background: #ffffff52;
@@ -864,15 +868,15 @@ small {
   gap: 5px;
 }
 .card-title h3 {
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 700;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .card-title > span {
-  font-size: 8px;
-  color: #aaa8bb;
+  font-size: 11px;
+  color: #73708f;
 }
 .card-meta {
   display: flex;
@@ -882,12 +886,12 @@ small {
   margin-top: 9px;
 }
 .card-meta > .badge {
-  font-size: 8px;
+  font-size: 11px;
   padding: 3px 5px;
 }
 .card-meta > span:last-child {
-  font-size: 8px;
-  color: #b1aabd;
+  font-size: 11px;
+  color: #7b6f8f;
 }
 .card-actions {
   display: flex;
@@ -899,7 +903,7 @@ small {
   padding-top: 10px;
 }
 .card-actions .btn {
-  font-size: 9px;
+  font-size: 12px;
   padding: 5px 6px;
   gap: 4px;
 }
@@ -919,19 +923,19 @@ small {
   text-align: center;
   flex: 1;
   padding: 25px;
-  color: #bc8b81;
+  color: #a46457;
 }
 .failed-card h3 {
-  font-size: 13px;
+  font-size: 15px;
   margin: 18px 0 6px;
 }
 .failed-card p {
-  font-size: 11px;
+  font-size: 13px;
 }
 .failed-card small {
-  font-size: 9px;
+  font-size: 12px;
   margin-top: 12px;
-  color: #ad9790;
+  color: #8a6f66;
 }
 .failed-card footer {
   display: flex;
@@ -941,7 +945,7 @@ small {
   border-top: 1px dashed #eadbd8;
 }
 .failed-card .btn {
-  font-size: 9px;
+  font-size: 12px;
   padding: 6px;
 }
 .selection-bar {
@@ -952,12 +956,12 @@ small {
   background: #eee6fc;
   border-radius: 7px;
   margin-bottom: 15px;
-  font-size: 11px;
+  font-size: 13px;
   color: var(--purple);
 }
 .selection-bar .btn {
   padding: 5px 10px;
-  font-size: 10px;
+  font-size: 13px;
 }
 .empty {
   display: flex;
@@ -971,7 +975,7 @@ small {
   background: #ffffff88;
 }
 .empty-icon {
-  color: #9e87bf;
+  color: #8467ae;
   background: #f1ecf9;
   border-radius: 12px;
   padding: 15px;
@@ -981,7 +985,7 @@ small {
   font-size: 20px;
 }
 .empty p {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--muted);
   margin: 9px 0 20px;
 }
@@ -991,8 +995,8 @@ small {
   justify-content: space-between;
   align-items: center;
   padding: 13px 35px;
-  font-size: 9px;
-  color: #b0aabd;
+  font-size: 12px;
+  color: #796f8f;
 }
 .app-footer > span {
   display: flex;
@@ -1017,7 +1021,7 @@ small {
 }
 .app-loading h2 {
   font-size: 20px;
-  color: #9480b3;
+  color: #816aa6;
 }
 .projects-grid {
   display: grid;
@@ -1078,7 +1082,7 @@ small {
   padding: 23px;
 }
 .project-tile-body > .eyebrow {
-  font-size: 8px;
+  font-size: 11px;
 }
 .project-tile-body > button {
   display: flex;
@@ -1092,8 +1096,8 @@ small {
   font-size: 20px;
 }
 .project-tile-body p {
-  font-size: 11px;
-  color: #9c97a9;
+  font-size: 13px;
+  color: #777188;
   min-height: 54px;
 }
 .project-tile-stats {
@@ -1101,8 +1105,8 @@ small {
   justify-content: space-between;
   align-items: center;
   margin: 16px 0;
-  font-size: 10px;
-  color: #a19bad;
+  font-size: 13px;
+  color: #7a718a;
 }
 .palette {
   display: flex;
@@ -1115,15 +1119,15 @@ small {
   margin-left: -3px;
 }
 .project-tile .card-actions .btn {
-  font-size: 10px;
+  font-size: 13px;
   padding: 7px 9px;
 }
 .capacity-note {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #a69bb1;
-  font-size: 10px;
+  color: #7e6f8e;
+  font-size: 13px;
   margin-top: 26px;
 }
 .input-with-icon {
@@ -1133,7 +1137,7 @@ small {
   border: 1px solid var(--border);
   border-radius: 6px;
   padding-left: 10px;
-  color: #a29daf;
+  color: #78718a;
 }
 .input-with-icon input {
   border: 0;
@@ -1149,8 +1153,8 @@ small {
   margin-bottom: 13px;
 }
 .surface p {
-  color: #9892a7;
-  font-size: 11px;
+  color: #78708b;
+  font-size: 13px;
   margin-top: 9px;
 }
 .details-tabs {
@@ -1188,7 +1192,7 @@ small {
   gap: 25px 40px;
 }
 .brief-grid h3 {
-  font-size: 12px;
+  font-size: 14px;
 }
 .brief-grid p {
   line-height: 1.9;
@@ -1222,8 +1226,8 @@ small {
   border-radius: 7px;
 }
 .big-palette code {
-  font-size: 10px;
-  color: #a19aac;
+  font-size: 13px;
+  color: #7a7189;
 }
 .project-danger {
   border-top: 1px solid var(--border);
@@ -1232,8 +1236,8 @@ small {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  color: #aaa2b5;
-  font-size: 10px;
+  color: #7b6f8c;
+  font-size: 13px;
 }
 .run-row,
 .team-row {
@@ -1242,7 +1246,7 @@ small {
   gap: 14px;
   padding: 17px 0;
   border-bottom: 1px solid var(--border);
-  font-size: 11px;
+  font-size: 13px;
 }
 .run-row:last-child,
 .team-row:last-child {
@@ -1255,30 +1259,30 @@ small {
   width: 31px;
   height: 35px;
   background: #ededff;
-  color: #ac92cc;
+  color: #8863b6;
 }
 .run-row strong,
 .team-row strong {
   display: block;
-  font-size: 11px;
+  font-size: 13px;
 }
 .run-row small,
 .team-row small {
   display: block;
-  font-size: 9px;
-  color: #a9a0b6;
+  font-size: 12px;
+  color: #7d6f90;
   margin-top: 3px;
 }
 .run-row > span:not(.run-icon):not(.badge) {
-  font-size: 10px;
-  color: #aaa3b5;
+  font-size: 13px;
+  color: #7b708c;
 }
 .team-row select {
   max-width: 150px;
-  font-size: 10px;
+  font-size: 13px;
 }
 .team-row .btn {
-  font-size: 10px;
+  font-size: 13px;
 }
 .integration-mode {
   display: flex;
@@ -1292,7 +1296,7 @@ small {
   padding: 12px;
   border-radius: 10px;
   background: #f3edfc;
-  color: #a487c6;
+  color: #8863b5;
   line-height: 0;
 }
 .integration-mode select {
@@ -1307,7 +1311,7 @@ small {
   min-height: 35px;
 }
 .integration-card .btn {
-  font-size: 10px;
+  font-size: 13px;
   margin-top: 18px;
 }
 .automation-details {
@@ -1317,8 +1321,8 @@ small {
   margin: 24px 0 30px;
 }
 .automation-details span {
-  font-size: 10px;
-  color: #a097b0;
+  font-size: 13px;
+  color: #7b6e91;
   display: block;
 }
 .automation-details strong {
@@ -1328,8 +1332,8 @@ small {
 }
 .automation-details small {
   display: block;
-  color: #b0a6bd;
-  font-size: 9px;
+  color: #7f6e94;
+  font-size: 12px;
 }
 .switch-row {
   display: flex;
@@ -1343,12 +1347,12 @@ small {
   height: 18px;
 }
 .switch-row strong {
-  font-size: 12px;
+  font-size: 14px;
   display: block;
 }
 .switch-row small {
-  font-size: 10px;
-  color: #a9a0b6;
+  font-size: 13px;
+  color: #7d6f90;
   display: block;
 }
 .field {
@@ -1356,15 +1360,15 @@ small {
   flex-direction: column;
   gap: 7px;
   margin-bottom: 18px;
-  font-size: 11px;
+  font-size: 13px;
 }
 .field > span {
   color: #797187;
   font-weight: 700;
 }
 .field small {
-  font-size: 9px;
-  color: #b0a4ba;
+  font-size: 12px;
+  color: #806d90;
   font-weight: 400;
 }
 .field input,
@@ -1379,7 +1383,7 @@ textarea {
   color: #696179;
   padding: 9px 11px;
   max-width: 100%;
-  font-size: 12px;
+  font-size: 14px;
 }
 .field textarea {
   resize: vertical;
@@ -1387,8 +1391,8 @@ textarea {
 }
 .field input::placeholder,
 .field textarea::placeholder {
-  color: #bbb1c6;
-  font-size: 11px;
+  color: #9889a9;
+  font-size: 13px;
 }
 .form-grid {
   display: grid;
@@ -1398,18 +1402,18 @@ textarea {
 .form-error {
   border: 1px solid #efd6d0;
   background: #fff5f2;
-  color: #b17668;
+  color: #a36454;
   padding: 10px;
   border-radius: 6px;
-  font-size: 11px;
+  font-size: 13px;
 }
 .soft-note {
-  font-size: 10px;
+  font-size: 13px;
   background: #f9f6fd;
   border: 1px solid #f0ebf7;
   border-radius: 6px;
   padding: 12px;
-  color: #a293b5;
+  color: #806c9a;
   line-height: 1.8;
   margin: 16px 0;
   display: flex;
@@ -1419,8 +1423,8 @@ textarea {
   flex-shrink: 0;
 }
 .success-note {
-  color: #60947e;
-  font-size: 12px;
+  color: #527e6c;
+  font-size: 14px;
   margin: 10px 0;
 }
 .modal-backdrop {
@@ -1457,8 +1461,8 @@ textarea {
   font-size: 22px;
 }
 .modal-heading p {
-  font-size: 11px;
-  color: #a899b6;
+  font-size: 13px;
+  color: #826c96;
   margin-top: 6px;
 }
 .modal-body {
@@ -1483,7 +1487,7 @@ textarea {
 }
 .tabs button {
   flex: 1;
-  font-size: 11px;
+  font-size: 13px;
   color: #686886;
   padding: 8px;
   border-radius: 5px;
@@ -1521,7 +1525,7 @@ textarea {
   cursor: pointer;
 }
 .logo-upload span {
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 400;
 }
 .color-fields {
@@ -1544,7 +1548,7 @@ textarea {
   height: 36px;
   padding: 4px 8px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 14px;
+  font-size: 15px;
   text-transform: lowercase;
 }
 .brand-font {
@@ -1561,7 +1565,7 @@ textarea {
   gap: 8px;
 }
 .color-fields code {
-  font-size: 10px;
+  font-size: 13px;
   color: #686886;
 }
 .toast {
@@ -1579,12 +1583,12 @@ textarea {
   gap: 10px;
   padding: 15px 19px;
   color: #2525e0;
-  font-size: 12px;
+  font-size: 14px;
   max-width: 700px;
   min-width: 260px;
 }
 .toast.error {
-  color: #b77e71;
+  color: #a66354;
   border-color: #ead0c9;
 }
 .toast > svg {
@@ -1596,8 +1600,8 @@ textarea {
   margin-left: 8px;
 }
 .guide p {
-  font-size: 12px;
-  color: #92839f;
+  font-size: 14px;
+  color: #7f6e8e;
   line-height: 1.9;
   margin-bottom: 16px;
 }
@@ -1624,10 +1628,10 @@ textarea {
   font-size: 21px;
 }
 .editor-top h1 > span {
-  font-size: 11px;
+  font-size: 13px;
   letter-spacing: 0;
   margin-left: 12px;
-  color: #b3a5c0;
+  color: #836c98;
   font-weight: 400;
 }
 .editor-save-state {
@@ -1637,11 +1641,11 @@ textarea {
   margin-left: auto;
 }
 .editor-save-state > span {
-  font-size: 9px;
+  font-size: 12px;
   display: flex;
   gap: 5px;
   align-items: center;
-  color: #a999b9;
+  color: #816a99;
 }
 .editor-save-state i {
   display: block;
@@ -1654,7 +1658,7 @@ textarea {
   background: #d6ad69;
 }
 .editor-top .btn {
-  font-size: 10px;
+  font-size: 13px;
   padding: 8px 11px;
 }
 .editor-grid {
@@ -1679,8 +1683,8 @@ textarea {
   gap: 4px;
   flex: 1;
   padding: 12px 6px;
-  color: #a597b4;
-  font-size: 9px;
+  color: #806c95;
+  font-size: 12px;
 }
 .editor-tabs button.active {
   background: #f6f0ff;
@@ -1694,42 +1698,42 @@ textarea {
   margin-bottom: 21px;
 }
 .panel-title h3 {
-  font-size: 13px;
+  font-size: 15px;
   display: flex;
   align-items: center;
   gap: 7px;
 }
 .panel-title p {
-  font-size: 9px;
-  color: #afa1bc;
+  font-size: 12px;
+  color: #816b96;
   margin-top: 5px;
 }
 .editor-panel-body .field {
   margin-bottom: 17px;
 }
 .editor-panel-body .field > span {
-  font-size: 10px;
+  font-size: 13px;
 }
 .editor-panel-body textarea {
-  font-size: 11px;
+  font-size: 13px;
   padding: 9px;
 }
 .editor-panel-body .soft-note {
-  font-size: 9px;
+  font-size: 12px;
   padding: 10px;
 }
 .editor-panel-body .form-grid {
   gap: 10px;
 }
 .editor-panel-body .btn {
-  font-size: 10px;
+  font-size: 13px;
 }
 .checkbox-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 10px;
-  color: #9a8ba8;
+  font-size: 13px;
+  color: #7f6d91;
   margin: 13px 0 20px;
 }
 .checkbox-row input {
@@ -1748,7 +1752,7 @@ textarea {
   display: grid;
   place-items: center;
   padding: 9px;
-  color: #b5a9bf;
+  color: #816d92;
 }
 .alignment-control button.active {
   background: #f4edfc;
@@ -1768,8 +1772,8 @@ textarea {
   display: flex;
   justify-content: space-between;
   width: 100%;
-  color: #b4a7c0;
-  font-size: 8px;
+  color: #816c95;
+  font-size: 11px;
   margin-bottom: 17px;
 }
 .stage-heading span:first-child {
@@ -1799,8 +1803,8 @@ textarea {
   background: transparent;
 }
 .stage-caption {
-  font-size: 8px;
-  color: #aa99b8;
+  font-size: 11px;
+  color: #836a98;
   display: flex;
   align-items: center;
   flex-direction: column;
@@ -1808,8 +1812,8 @@ textarea {
   gap: 2px;
 }
 .stage-caption small {
-  font-size: 8px;
-  color: #b9adbf;
+  font-size: 11px;
+  color: #826d8c;
 }
 .artwork-actions {
   display: flex;
@@ -1819,11 +1823,11 @@ textarea {
   flex-wrap: wrap;
 }
 .artwork-actions .btn {
-  font-size: 9px;
+  font-size: 12px;
   padding: 7px 9px;
 }
 .editor-stage > .muted {
-  font-size: 8px;
+  font-size: 11px;
   margin-top: 10px;
 }
 .version-panel .surface {
@@ -1849,30 +1853,30 @@ textarea {
   justify-content: space-between;
 }
 .version-entry strong {
-  font-size: 10px;
-  color: #9685a6;
+  font-size: 13px;
+  color: #806c94;
 }
 .version-entry p {
-  font-size: 8px !important;
-  color: #b8aabd;
+  font-size: 11px !important;
+  color: #846d8c;
   margin-top: 4px;
 }
 .version-entry small {
   display: block;
-  font-size: 8px;
-  color: #99b09c;
+  font-size: 11px;
+  color: #607c63;
 }
 .tiny-tag {
-  font-size: 6px;
+  font-size: 10px;
   letter-spacing: 0.8px;
   background: #eee5f8;
-  color: #a08ab6;
+  color: #8569a1;
   padding: 2px 4px;
   border-radius: 3px;
 }
 .version-entry .text-button,
 .version-entry .btn {
-  font-size: 8px;
+  font-size: 11px;
   padding: 5px 0;
 }
 .version-entry .text-button {
@@ -1880,33 +1884,33 @@ textarea {
 }
 .editor-note {
   padding: 5px 12px;
-  color: #b2a0c3;
+  color: #8669a0;
 }
 .editor-note h4 {
-  font-size: 10px;
+  font-size: 13px;
   margin: 8px 0;
 }
 .editor-note p {
-  font-size: 9px;
+  font-size: 12px;
   line-height: 1.9;
-  color: #b9acc3;
+  color: #836c95;
 }
 .prompt-details {
-  font-size: 9px;
-  color: #b2a0bf;
+  font-size: 12px;
+  color: #86699a;
   margin: 20px 10px;
 }
 .prompt-details summary {
   cursor: pointer;
-  color: #9785a5;
+  color: #826c93;
 }
 .prompt-details p {
   margin-top: 10px;
   word-break: break-word;
 }
 .composition-errors {
-  font-size: 9px;
-  color: #bb7d6d;
+  font-size: 12px;
+  color: #a9614f;
   margin: 0 0 15px;
   max-width: 320px;
 }
@@ -1926,8 +1930,8 @@ textarea {
   margin-bottom: 18px;
 }
 .feedback-presets button {
-  font-size: 8px;
-  color: #a08bb4;
+  font-size: 11px;
+  color: #856a9f;
   background: #f7f2fc;
   border: 1px solid #eadff4;
   padding: 5px;
@@ -1939,14 +1943,14 @@ textarea {
   margin-top: 13px;
 }
 .feedback-entry strong {
-  font-size: 10px;
+  font-size: 13px;
 }
 .feedback-entry p {
-  font-size: 10px;
+  font-size: 13px;
 }
 .feedback-entry small {
-  font-size: 8px;
-  color: #b1a0bb;
+  font-size: 11px;
+  color: #856a95;
 }
 .conflict-banner {
   display: flex;
@@ -1954,8 +1958,8 @@ textarea {
   gap: 10px;
   padding: 12px;
   background: #fff3e8;
-  color: #b49675;
-  font-size: 11px;
+  color: #8d6f4d;
+  font-size: 13px;
   border: 1px solid #f0decf;
   border-radius: 6px;
   margin-bottom: 15px;
@@ -2003,7 +2007,7 @@ textarea {
 .login-pitch .eyebrow {
   color: #dddfff;
   margin-bottom: 20px;
-  font-size: 10px;
+  font-size: 13px;
   letter-spacing: 1.5px;
 }
 .login-pitch h1 {
@@ -2016,7 +2020,7 @@ textarea {
   color: var(--lime);
 }
 .login-pitch p {
-  font-size: 14px;
+  font-size: 15px;
   color: #eeeefe;
   line-height: 1.7;
   margin-top: 24px;
@@ -2036,7 +2040,7 @@ textarea {
   padding: 12px 20px;
   border-radius: 28px;
   color: white;
-  font-size: 12px;
+  font-size: 14px;
 }
 .login-orbit {
   position: absolute;
@@ -2051,7 +2055,7 @@ textarea {
   align-items: center;
   gap: 10px;
   font-weight: 700;
-  font-size: 10px;
+  font-size: 13px;
   letter-spacing: 1px;
 }
 .login-form {
@@ -2066,7 +2070,7 @@ textarea {
 }
 .login-form .eyebrow {
   color: var(--purple);
-  font-size: 9px;
+  font-size: 12px;
   letter-spacing: 1.1px;
 }
 .login-form h2 {
@@ -2077,7 +2081,7 @@ textarea {
   margin: 17px 0 16px;
 }
 .login-form-inner > p {
-  font-size: 12px;
+  font-size: 14px;
   color: #686886;
   margin-bottom: 35px;
 }
@@ -2085,11 +2089,11 @@ textarea {
   margin-bottom: 19px;
 }
 .login-form .field > span {
-  font-size: 11px;
+  font-size: 13px;
   color: #4b4b64;
 }
 .login-form input {
-  font-size: 12px;
+  font-size: 14px;
   padding: 14px 16px;
   border-radius: 14px;
   background: white;
@@ -2107,7 +2111,7 @@ textarea {
   border-top: 1px solid var(--border);
   margin-top: 30px;
   padding-top: 22px;
-  font-size: 10px;
+  font-size: 13px;
   color: #686886;
 }
 .login-admin-note svg {
@@ -2148,7 +2152,7 @@ textarea {
   color: var(--ink);
 }
 .brand-word > span {
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 800;
   line-height: 1.25;
   letter-spacing: 0.65px;
@@ -2221,11 +2225,11 @@ textarea {
 .account-details span {
   display: block;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 13px;
   margin-bottom: 5px;
 }
 .account-details strong {
-  font-size: 13px;
+  font-size: 15px;
 }
 .brand-website {
   display: inline-flex;
@@ -2241,15 +2245,15 @@ textarea {
     gap: 25px;
   }
   .card-title h3 {
-    font-size: 12px;
+    font-size: 14px;
   }
   .card-actions .btn {
-    font-size: 11px;
+    font-size: 13px;
     padding: 7px 9px;
   }
   .card-meta > .badge,
   .card-meta > span:last-child {
-    font-size: 9px;
+    font-size: 12px;
   }
   .story-card-info {
     padding: 16px;
@@ -2282,7 +2286,7 @@ textarea {
     gap: 12px;
   }
   .card-actions .btn {
-    font-size: 8px;
+    font-size: 11px;
     padding: 4px;
   }
   .card-actions svg {
@@ -2376,7 +2380,7 @@ textarea {
     align-items: flex-start;
   }
   .page-heading .btn {
-    font-size: 10px;
+    font-size: 13px;
   }
   .stats-grid {
     gap: 10px;
@@ -2385,16 +2389,16 @@ textarea {
     padding: 15px 12px;
   }
   .stat-card > div {
-    font-size: 9px;
+    font-size: 12px;
   }
   .stat-card small {
-    font-size: 8px;
+    font-size: 11px;
   }
   .daily-banner {
     padding: 14px;
   }
   .daily-banner p {
-    font-size: 9px;
+    font-size: 12px;
   }
   .stories-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2461,7 +2465,7 @@ textarea {
     flex: 1;
     flex-direction: column;
     gap: 3px;
-    font-size: 8px;
+    font-size: 11px;
     height: auto;
     padding: 5px;
   }
@@ -2482,7 +2486,7 @@ textarea {
     display: none;
   }
   .breadcrumb {
-    font-size: 10px;
+    font-size: 13px;
   }
   .content {
     padding: 24px 18px 30px;
@@ -2499,13 +2503,13 @@ textarea {
     margin-top: 17px;
   }
   .page-heading p {
-    font-size: 11px;
+    font-size: 13px;
   }
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
   }
   .stat-card small {
-    font-size: 9px;
+    font-size: 12px;
   }
   .daily-banner {
     gap: 10px;
@@ -2515,10 +2519,10 @@ textarea {
     display: none;
   }
   .daily-banner strong {
-    font-size: 10px;
+    font-size: 13px;
   }
   .daily-banner p {
-    font-size: 8px;
+    font-size: 11px;
   }
   .banner-icon {
     padding: 8px;
@@ -2530,7 +2534,7 @@ textarea {
   }
   .filter-controls input,
   .filter-controls select {
-    font-size: 9px;
+    font-size: 12px;
     flex: 1;
     min-width: 100px;
     max-width: none;
@@ -2540,10 +2544,10 @@ textarea {
     gap: 12px;
   }
   .card-actions .btn {
-    font-size: 8px;
+    font-size: 11px;
   }
   .card-title h3 {
-    font-size: 9px;
+    font-size: 12px;
   }
   .card-meta > span:last-child {
     display: none;
@@ -2552,10 +2556,10 @@ textarea {
     display: none;
   }
   .project-story-heading > .text-button {
-    font-size: 8px;
+    font-size: 11px;
   }
   .research-note {
-    font-size: 8px;
+    font-size: 11px;
     align-items: flex-start;
   }
   .projects-grid {
@@ -2574,7 +2578,7 @@ textarea {
   }
   .tabs.details-tabs button {
     padding: 10px !important;
-    font-size: 10px;
+    font-size: 13px;
   }
   .run-row {
     flex-wrap: wrap;
@@ -2604,7 +2608,7 @@ textarea {
   }
   .app-footer {
     padding: 12px 18px;
-    font-size: 8px;
+    font-size: 11px;
     gap: 10px;
   }
   .app-footer > span {
@@ -2615,7 +2619,7 @@ textarea {
   }
   .app-footer button {
     white-space: nowrap;
-    font-size: 8px;
+    font-size: 11px;
   }
   .modal-backdrop {
     padding: 12px;
@@ -2652,16 +2656,16 @@ textarea {
     bottom: 82px;
     width: 90%;
     max-width: 90%;
-    font-size: 10px;
+    font-size: 13px;
     padding: 13px;
   }
   .selection-bar {
     flex-wrap: wrap;
     gap: 6px;
-    font-size: 9px;
+    font-size: 12px;
   }
   .selection-bar .btn {
-    font-size: 9px;
+    font-size: 12px;
   }
   .selection-bar > .spacer {
     display: none;
@@ -2735,7 +2739,7 @@ textarea {
   }
   .login-pitch > .eyebrow {
     margin: 28px 0 8px;
-    font-size: 8px;
+    font-size: 11px;
   }
   .login-pitch h1 {
     font-size: 27px;
@@ -2758,7 +2762,7 @@ textarea {
 
 @media (max-width: 1200px) {
   .brand-word > span {
-    font-size: 9px;
+    font-size: 12px;
   }
   .brand-word > strong {
     font-size: 17px;
@@ -2831,11 +2835,11 @@ textarea {
 }
 .project-engagement strong {
   display: block;
-  font-size: 12px;
+  font-size: 14px;
 }
 .project-engagement small {
   display: block;
-  font-size: 10px;
+  font-size: 13px;
   line-height: 1.6;
   margin-top: 5px;
 }
@@ -2869,7 +2873,7 @@ textarea {
     display: none;
   }
   .stats-grid .stat-card > div {
-    font-size: 9px;
+    font-size: 12px;
     line-height: 1.2;
     min-height: 22px;
   }
@@ -2914,7 +2918,7 @@ textarea {
 .quick-start small {
   display: block;
   margin-top: 4px;
-  color: #8b8b9f;
+  color: #73738b;
 }
 .quick-start-fields {
   display: grid;

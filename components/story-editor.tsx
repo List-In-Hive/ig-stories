@@ -225,7 +225,7 @@ export default function StoryEditor({
             <SaveStories
               versionIds={[base.id]}
               disabled={dirty}
-              desktopLabel="Download PNG"
+              desktopLabel="Download image"
               notify={notify}
             />
           ) : (

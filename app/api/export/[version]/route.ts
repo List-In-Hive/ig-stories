@@ -1,19 +1,18 @@
 import { exportVersion, recordExport } from '@/lib/services';
-import { renderPng } from '@/lib/composition';
-import { filename } from '@/lib/export';
+import { filename, renderStory } from '@/lib/export';
 import { authenticated, failure, noCache } from '@/lib/http';
 export const runtime = 'nodejs';
 export async function GET(request: Request, context: { params: Promise<{ version: string }> }) {
   try {
     const user = authenticated(request);
     const version = exportVersion((await context.params).version);
-    const bytes = renderPng(version.data);
-    recordExport(version, user.id, 'png');
-    return new Response(new Uint8Array(bytes), {
+    const image = await renderStory(version.data);
+    recordExport(version, user.id, image.extension);
+    return new Response(new Uint8Array(image.bytes), {
       headers: {
         ...noCache,
-        'Content-Type': 'image/png',
-        'Content-Disposition': `attachment; filename="${filename(version)}"`,
+        'Content-Type': image.mime,
+        'Content-Disposition': `attachment; filename="${filename(version, image.extension)}"`,
       },
     });
   } catch (error) {
