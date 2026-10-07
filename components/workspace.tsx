@@ -15,7 +15,6 @@ import {
   ArrowRight,
   Check,
   CheckCheck,
-  Download,
   SlidersHorizontal,
   Sparkles,
   Clock3,
@@ -43,6 +42,7 @@ import Login from './login';
 import Brand from './brand';
 import ProjectForm from './project-form';
 import StoryEditor from './story-editor';
+import SaveStories from './save-stories';
 export type Command = <T = Record<string, unknown>>(
   action: string,
   data?: Record<string, unknown>,
@@ -520,14 +520,13 @@ function StoryCard({
             Edit story
           </Button>
           {story.approvedVersionId ? (
-            <a
-              className="btn secondary small"
-              href={`/api/export/${story.approvedVersionId}`}
-              onClick={() => notify('Downloading the approved PNG. Posting remains manual.')}
-            >
-              <Download size={14} />
-              Download
-            </a>
+            <SaveStories
+              versionIds={[story.approvedVersionId]}
+              variant="secondary"
+              small
+              desktopLabel="Download"
+              notify={notify}
+            />
           ) : (
             <Button variant="secondary" busy={busy} onClick={() => void approval()}>
               <Check size={14} />
@@ -629,7 +628,7 @@ function StoryList({
   }
   return (
     <>
-      <div className="page-heading">
+      <div className={`page-heading ${history ? '' : 'today-heading'}`}>
         <div>
           <div className="eyebrow">
             {history
@@ -644,7 +643,7 @@ function StoryList({
           <h1>{history ? 'Your recent stories.' : 'Good stories. Ready for your day.'}</h1>
           <p>
             {history
-              ? 'Keep today and the previous two Los Angeles dates. Older stories are deleted after today’s daily batch is ready.'
+              ? 'Keep today and the previous two days. Older stories are deleted after today’s daily batch is ready.'
               : 'A fresh set of stories for your brands. A little review, then they’re yours.'}
           </p>
         </div>
@@ -797,14 +796,13 @@ function StoryList({
             <CheckCheck size={15} />
             Approve selected
           </Button>
-          <Button
-            busy={busy}
-            disabled={!eligible.some((s) => !!s.approvedVersionId)}
-            onClick={() => void downloadZip()}
-          >
-            <Download size={15} />
-            Download approved ZIP
-          </Button>
+          <SaveStories
+            versionIds={eligible.map((s) => s.approvedVersionId).filter((v): v is string => !!v)}
+            disabled={busy}
+            desktopLabel="Download approved ZIP"
+            onDesktop={() => void downloadZip()}
+            notify={notify}
+          />
         </div>
       )}
       <div className="research-note">

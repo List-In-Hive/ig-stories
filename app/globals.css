@@ -2819,3 +2819,57 @@ textarea {
   font-weight: 700;
   margin-bottom: 18px;
 }
+/* Phone polish: stories first on Today, actions always within thumb reach in the editor. */
+@media (max-width: 700px) {
+  .sidebar {
+    height: calc(64px + env(safe-area-inset-bottom));
+    padding-bottom: calc(6px + env(safe-area-inset-bottom));
+  }
+  .today-heading > div > p,
+  .today-heading > .btn {
+    display: none;
+  }
+  .today-heading h1 {
+    font-size: 28px;
+  }
+  .stats-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+  }
+  .stats-grid .stat-card {
+    padding: 9px 8px 8px;
+  }
+  .stats-grid .stat-card > div i,
+  .stats-grid .stat-card small {
+    display: none;
+  }
+  .stats-grid .stat-card > div {
+    font-size: 9px;
+    line-height: 1.2;
+    min-height: 22px;
+  }
+  .stats-grid .stat-card strong {
+    font-size: 22px;
+    margin-top: 2px;
+  }
+  .editor-top .button-group {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: calc(64px + env(safe-area-inset-bottom));
+    z-index: 25;
+    display: flex;
+    gap: 8px;
+    padding: 10px 16px;
+    background: rgba(255, 255, 255, 0.96);
+    border-top: 1px solid var(--border);
+    backdrop-filter: blur(8px);
+  }
+  .editor-top .button-group .btn {
+    flex: 1;
+    justify-content: center;
+  }
+  .editor-grid {
+    padding-bottom: 76px;
+  }
+}

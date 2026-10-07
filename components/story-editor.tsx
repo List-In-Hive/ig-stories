@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import type { Layer, Layout, Story, Version } from '@/lib/types';
 import { api, Button, Badge, Field, formatTime } from './ui';
+import SaveStories from './save-stories';
 import type { Command } from './workspace';
 type Feedback = {
   id: string;
@@ -221,14 +222,12 @@ export default function StoryEditor({
             Save changes
           </Button>
           {approved ? (
-            <a
-              className={`btn primary ${dirty ? 'disabled' : ''}`}
-              href={dirty ? undefined : `/api/export/${base.id}`}
-              aria-disabled={dirty}
-            >
-              <Download size={15} />
-              Download PNG
-            </a>
+            <SaveStories
+              versionIds={[base.id]}
+              disabled={dirty}
+              desktopLabel="Download PNG"
+              notify={notify}
+            />
           ) : (
             <Button
               busy={busy === 'approve'}
