@@ -37,10 +37,33 @@ import {
   Leaf,
 } from 'lucide-react';
 import type { AppState, Project, Story, Run } from '@/lib/types';
-import { api, Button, Badge, Field, Empty, Modal, formatDate, formatTime } from './ui';
+import {
+  api,
+  Button,
+  Badge,
+  Field,
+  Empty,
+  Modal,
+  formatClock,
+  formatDate,
+  formatTime,
+  setDisplayTimeZone,
+  zoneLabel,
+} from './ui';
+// The distinct daily generation times of active projects, such as "8:00 AM, 9:30 AM".
+const dailyTimes = (state: AppState) =>
+  [
+    ...new Set(
+      state.projects.filter((p) => p.status === 'active').map((p) => p.generateAt || '08:00'),
+    ),
+  ]
+    .sort()
+    .map(formatClock)
+    .join(', ') || formatClock('08:00');
 import Login from './login';
 import Brand from './brand';
 import ProjectForm from './project-form';
+import { palette } from '@/lib/palette';
 import StoryEditor from './story-editor';
 import SaveStories from './save-stories';
 export type Command = <T = Record<string, unknown>>(
@@ -70,7 +93,9 @@ export default function Workspace() {
   const [dirty, setDirty] = useState(false);
   const refresh = useCallback(async () => {
     try {
-      setState(await api<AppState>('/api/state'));
+      const next = await api<AppState>('/api/state');
+      setDisplayTimeZone(next.settings.timeZone);
+      setState(next);
     } catch (e) {
       if ((e as Error & { status: number }).status === 401) setState(null);
       else setToast({ message: (e as Error).message, error: true });
@@ -188,7 +213,7 @@ export default function Workspace() {
                 onClick={() => navigate(`/projects/${p.id}`)}
                 title={p.name}
               >
-                <i style={{ background: p.colors[1] }} />
+                <i style={{ background: palette(p.colors).accent }} />
                 <span>{p.name}</span>
                 {p.status === 'paused' && <Pause size={12} />}
               </button>
@@ -333,7 +358,7 @@ export default function Workspace() {
             Local worker {state.worker.online ? 'online' : 'offline'}
             <span className="footer-separator">·</span>
             {state.settings.automationEnabled
-              ? `Daily at 8:00 AM ${new Date().toLocaleDateString('en-US', { timeZone: 'America/Los_Angeles', timeZoneName: 'short' }).split(' ').pop()}`
+              ? `Daily at ${dailyTimes(state)} ${zoneLabel()}`
               : 'Daily automation paused'}
           </span>
           <button onClick={() => setHelp(true)}>
@@ -421,7 +446,8 @@ export default function Workspace() {
             </p>
             <p>
               <strong>2. Review the drafts.</strong> The local worker creates four independent story
-              slots for each active project at 8:00 AM Los Angeles time while it is running.
+              slots for each active project at that project’s daily time ({dailyTimes(state)}{' '}
+              {zoneLabel()}) while it is running.
             </p>
             <p>
               <strong>3. Make it yours.</strong> Edit text and layout, regenerate artwork, or start
@@ -696,7 +722,7 @@ function StoryList({
               </strong>
               <p>
                 {state.worker.online
-                  ? 'Four drafts per active project. Every morning at 8:00 AM, Los Angeles time.'
+                  ? `Four drafts per active project, daily at ${dailyTimes(state)} ${zoneLabel()}.`
                   : 'The worker is offline. Start the app and worker together to generate queued drafts.'}
               </p>
             </div>
@@ -823,7 +849,10 @@ function StoryList({
             <div className="project-story-heading">
               <div
                 className="project-mark"
-                style={{ background: project.colors[0], color: project.colors[1] }}
+                style={{
+                  background: palette(project.colors).background,
+                  color: palette(project.colors).accent,
+                }}
               >
                 {project.name.charAt(0)}
               </div>
@@ -1044,12 +1073,12 @@ function Projects({
       <div className="projects-grid">
         {projects.map((p) => (
           <article className="project-tile" key={p.id}>
-            <div className="project-cover" style={{ background: p.colors[0] }}>
-              <div className="cover-shapes" style={{ background: p.colors[1] }} />
+            <div className="project-cover" style={{ background: palette(p.colors).background }}>
+              <div className="cover-shapes" style={{ background: palette(p.colors).accent }} />
               {p.logoId ? (
                 <img src={`/api/assets/${p.logoId}`} alt={`${p.name} logo`} />
               ) : (
-                <span style={{ color: p.colors[1] }}>{p.name.charAt(0)}</span>
+                <span style={{ color: palette(p.colors).accent }}>{p.name.charAt(0)}</span>
               )}
               <Badge status={p.status} />
             </div>
@@ -1177,7 +1206,9 @@ function ProjectDetails({
                 <h3>Project rhythm</h3>
                 <Clock3 size={18} />
               </div>
-              <p>4 story drafts · daily at 8:00 AM Los Angeles time</p>
+              <p>
+                4 story drafts · daily at {formatClock(project.generateAt || '08:00')} {zoneLabel()}
+              </p>
               <div className="button-group">
                 <Button
                   variant="secondary"

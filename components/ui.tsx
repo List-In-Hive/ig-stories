@@ -155,16 +155,40 @@ export async function api<T = Record<string, unknown>>(url: string, body?: unkno
   }
   return data;
 }
+// Times show in the workspace time zone (Settings > Automation), set once the state loads.
+let displayZone = 'America/Los_Angeles';
+export function setDisplayTimeZone(zone: string) {
+  displayZone = zone;
+}
+// The abbreviation for the workspace zone, such as "GMT+4" or "PDT".
+export const zoneLabel = () =>
+  new Date()
+    .toLocaleString('en-US', { timeZone: displayZone, timeZoneName: 'short' })
+    .split(' ')
+    .pop();
+// "08:00" as "8:00 AM", read as a wall-clock time in the workspace zone.
+export const formatClock = (time: string) => {
+  const [h, m] = time.split(':').map(Number);
+  return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+};
 export const formatDate = (value: string, options?: Intl.DateTimeFormatOptions) =>
-  new Date(value.length === 10 ? value + 'T12:00:00-07:00' : value).toLocaleDateString('en-US', {
-    timeZone: 'America/Los_Angeles',
-    month: 'short',
-    day: 'numeric',
-    ...options,
-  });
+  // Business dates (YYYY-MM-DD) are calendar days already, so they are shown without a zone shift.
+  value.length === 10
+    ? new Date(value + 'T12:00:00Z').toLocaleDateString('en-US', {
+        timeZone: 'UTC',
+        month: 'short',
+        day: 'numeric',
+        ...options,
+      })
+    : new Date(value).toLocaleDateString('en-US', {
+        timeZone: displayZone,
+        month: 'short',
+        day: 'numeric',
+        ...options,
+      });
 export const formatTime = (value: string) =>
   new Date(value).toLocaleString('en-US', {
-    timeZone: 'America/Los_Angeles',
+    timeZone: displayZone,
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
