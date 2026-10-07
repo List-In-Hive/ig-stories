@@ -46,14 +46,14 @@ const text = z.string().max(5000).default('');
 const color = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Use a six-digit hex color.');
 const FONTS = ['Inter', 'Lora', 'Montserrat', 'Brand'] as const;
 export const projectSchema = z.object({
-  name: z.string().trim().min(2, 'Enter the project name (at least 2 characters).').max(80),
-  industry: z.string().trim().min(2, 'Enter the industry (at least 2 characters).').max(80),
+  name: z.string().trim().min(2, 'Enter the project name (at least 2 characters).').max(80, 'Keep the project name under 80 characters.'),
+  industry: z.string().trim().min(2, 'Enter the industry (at least 2 characters).').max(80, 'Keep the industry short, under 80 characters (e.g. Coffee & café).'),
   status: z.enum(['active', 'paused', 'archived']).default('active'),
   description: z
     .string()
     .trim()
     .min(10, 'Describe the business in at least 10 characters.')
-    .max(3000),
+    .max(3000, 'Keep the description under 3000 characters.'),
   services: text,
   audience: text,
   instagram: z

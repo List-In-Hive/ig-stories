@@ -260,7 +260,8 @@ test('AI quick start drafts a brief from the website for review', async () => {
   replies = [
     {
       name: 'Fern & Field',
-      industry: 'Plants & home',
+      industry:
+        'Plants & home, including indoor plants, planters, workshops, plant care services, gifts and local delivery',
       description: 'A plant shop.',
       services: 'Indoor plants, Planters',
       audience: 'Plant lovers',
@@ -270,7 +271,7 @@ test('AI quick start drafts a brief from the website for review', async () => {
       visualDirection: 'Soft greens',
       palette: { background: '#e6ebdf', text: '#1d2a1f', accent: '#638166', secondary: 'green' },
       font: 'Lora',
-      email: '',
+      email: 'see contact page',
       phone: '',
       address: '',
       location: 'Yerevan',
@@ -282,6 +283,9 @@ test('AI quick start drafts a brief from the website for review', async () => {
   });
   assert.match(requests[0].prompt, /https:\/\/fern\.example/);
   assert.equal(brief.colors.length, 4, 'invalid colors fall back to a full palette');
+  assert.ok(brief.industry.length <= 80, 'long AI answers are shortened to fit the form');
+  assert.match(brief.industry, /^Plants & home/);
+  assert.equal(brief.email, '', 'an invalid AI email is dropped');
   const saved = service.saveProject({
     ...brief,
     status: 'paused',

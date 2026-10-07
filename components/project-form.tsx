@@ -199,6 +199,7 @@ export default function ProjectForm({
       <input
         value={String(form[key] || '')}
         placeholder={placeholder}
+        maxLength={key === 'name' || key === 'industry' ? 80 : undefined}
         onChange={(e) => update(key, e.target.value)}
       />
     );

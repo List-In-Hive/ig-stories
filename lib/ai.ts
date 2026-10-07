@@ -341,6 +341,14 @@ const paletteSchema = z.object({
 });
 const paletteGuide =
   'palette: six-digit hex colors by role. background: the main backdrop tone; text: a headline color that reads clearly on the background; accent: the call-to-action and highlight color; secondary: a soft supporting tone';
+// Shortens AI text to the form's limit, cutting at a word or list boundary.
+function clip(value: string, max: number) {
+  const text = value.trim();
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max);
+  const stop = Math.max(cut.lastIndexOf(','), cut.lastIndexOf(';'), cut.lastIndexOf(' '));
+  return (stop > max / 2 ? cut.slice(0, stop) : cut).replace(/[\s,;:&-]+$/, '');
+}
 const businessSchema = z.object({
   name: z.string(),
   industry: z.string(),
@@ -389,7 +397,7 @@ async function studyPhotos(photos: Buffer[], keep: Keep) {
 - font: ${fontGuide}, judged from any lettering and the overall feel.
 - themes: recurring subjects and topics, comma-separated.
 - visibleFacts: facts written in the images (offers, prices, opening hours, slogans), one per line; empty if none.
-- brandName and industry: only if clearly shown, else empty strings.${
+- brandName and industry: only if clearly shown, else empty strings. industry is a short label of 2-4 words, such as "Coffee & café".${
               keep.colors || keep.font || keep.visualDirection
                 ? '\nThe admin already chose some styles by hand; they will be kept, so describe the photos honestly anyway.'
                 : ''
@@ -424,6 +432,8 @@ ${kept.length ? `\nThe admin has already set the ${kept.join('; ')}. Keep these 
 Read the website with web_fetch (home page plus at most a few key pages such as about, menu, services, or contact). Use web_search only to confirm the business name, location, or what it offers if the website is missing or thin; Instagram pages usually cannot be read, so do not rely on them.
 
 Fill every field:
+- name: the brand name only, no tagline.
+- industry: a short label of 2-4 words, such as "Coffee & café".
 - description: 2-3 sentences on what the business is and what makes it distinct.
 - services: main products or services, comma-separated.
 - audience: who they serve.
@@ -475,9 +485,9 @@ export async function draftBrief(input: {
     ? [found.background, found.text, found.accent, found.secondary].filter((c) => hex.test(c))
     : [];
   return {
-    name: business?.name || style?.brandName || '',
-    industry: business?.industry || style?.industry || '',
-    description: business?.description || '',
+    name: clip(business?.name || style?.brandName || '', 80),
+    industry: clip(business?.industry || style?.industry || '', 80),
+    description: clip(business?.description || '', 3000),
     services: business?.services || style?.themes || '',
     audience: business?.audience || '',
     facts: lines(business?.facts || '', style?.visibleFacts || ''),
@@ -486,7 +496,7 @@ export async function draftBrief(input: {
     visualDirection: style?.visualDirection || business?.visualDirection || '',
     colors: colors.length === 4 ? colors : ['#f3eee8', '#172420', '#2525e0', '#e8e6f7'],
     font: style?.font || business?.font || 'Inter',
-    email: business?.email || '',
+    email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(business?.email || '') ? business!.email : '',
     phone: business?.phone || '',
     address: business?.address || '',
     location: business?.location || '',
