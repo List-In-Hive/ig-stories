@@ -2873,3 +2873,31 @@ textarea {
     padding-bottom: 76px;
   }
 }
+.quick-start {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding: 16px;
+  border-color: #d9d9fa;
+  background: linear-gradient(110deg, #fff, #f5f5ff);
+}
+.quick-start strong {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.quick-start small {
+  display: block;
+  margin-top: 4px;
+  color: #8b8b9f;
+}
+.quick-start-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 8px;
+}
+@media (max-width: 700px) {
+  .quick-start-fields {
+    grid-template-columns: 1fr;
+  }
+}

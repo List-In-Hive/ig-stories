@@ -20,6 +20,7 @@ import {
 import { setSetting } from '@/lib/db';
 import { deleteProject } from '@/lib/lifecycle';
 import { isTimeZone } from '@/lib/schedule';
+import { draftBrief } from '@/lib/ai';
 export const runtime = 'nodejs';
 export async function POST(request: Request) {
   try {
@@ -32,6 +33,24 @@ export async function POST(request: Request) {
       case 'saveProject':
         result = saveProject(body.project, body.projectId);
         break;
+      case 'draftBrief': {
+        const input = z
+          .object({
+            website: z.union([z.literal(''), z.url()]).default(''),
+            handle: z.string().max(60).default(''),
+          })
+          .parse(body);
+        const handle = input.handle.trim().replace(/^@/, '').replace(/\/$/, '');
+        if (!input.website && !handle)
+          throw new AppError('Enter the website or Instagram handle first.');
+        const instagram = !handle
+          ? ''
+          : handle.startsWith('http')
+            ? handle
+            : `https://www.instagram.com/${handle}/`;
+        result = await draftBrief({ website: input.website, instagram });
+        break;
+      }
       case 'deleteProject':
         admin(user);
         result = deleteProject(

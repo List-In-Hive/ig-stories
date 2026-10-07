@@ -245,3 +245,39 @@ test('ADMIN_PASSWORD replaces the stored password once and signs out old session
   assert.throws(() => auth.localAuth.signIn('admin', '9741faso'));
   assert.ok(auth.localAuth.signIn('admin', 'a much longer password').token);
 });
+
+test('AI quick start drafts a brief from the website for review', async () => {
+  requests.length = 0;
+  replies = [
+    {
+      name: 'Fern & Field',
+      industry: 'Plants & home',
+      description: 'A plant shop.',
+      services: 'Indoor plants, Planters',
+      audience: 'Plant lovers',
+      facts: 'Open daily 9-7',
+      rules: 'Warm, plain English.',
+      prohibited: 'Medical claims',
+      visualDirection: 'Soft greens',
+      colors: ['#e6ebdf', '#638166', 'green'],
+      font: 'Lora',
+      email: '',
+      phone: '',
+      address: '',
+      location: 'Yerevan',
+    },
+  ];
+  const brief = await ai.draftBrief({
+    website: 'https://fern.example',
+    instagram: 'https://www.instagram.com/fern/',
+  });
+  assert.match(requests[0].prompt, /https:\/\/fern\.example/);
+  assert.equal(brief.colors.length, 3, 'invalid colors fall back to a full palette');
+  const saved = service.saveProject({
+    ...brief,
+    status: 'paused',
+    logoId: null,
+    website: brief.website,
+  });
+  assert.equal(service.getProject(saved.id).instagram, 'https://www.instagram.com/fern/');
+});

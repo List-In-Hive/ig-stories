@@ -75,6 +75,8 @@ const webSearch = {
   name: 'web_search' as const,
   max_uses: 5,
 };
+const webFetch = { type: 'web_fetch_20260209' as const, name: 'web_fetch' as const, max_uses: 6 };
+type ServerTool = typeof webSearch | typeof webFetch;
 
 function brief(project: Project) {
   return JSON.stringify(
@@ -105,7 +107,12 @@ function engagementRules(project: Project) {
 
 // Runs one Claude request to completion and returns the parsed output plus every URL that
 // web search actually returned, so cited sources can be checked against real results.
-async function parse<T extends z.ZodType>(schema: T, prompt: string, research = false) {
+async function parse<T extends z.ZodType>(
+  schema: T,
+  prompt: string,
+  tools: ServerTool[] = [],
+  system = SYSTEM,
+) {
   const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: 'user', content: prompt }];
   const seen = new Set<string>();
   for (let turn = 0; turn < 4; turn++) {
@@ -115,9 +122,9 @@ async function parse<T extends z.ZodType>(schema: T, prompt: string, research = 
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
       output_config: { effort: 'medium', format: betaZodOutputFormat(schema) },
-      system: SYSTEM,
+      system,
       messages,
-      ...(research ? { tools: [webSearch] } : {}),
+      ...(tools.length ? { tools } : {}),
     });
     for (const block of response.content ?? [])
       if (block.type === 'web_search_tool_result' && Array.isArray(block.content))
@@ -229,7 +236,7 @@ export const claudeScripts = {
         planSchema,
         planPrompt(project, count, recentTopics, context) +
           (problem ? `\n\nYour previous attempt was rejected: ${problem} Fix that.` : ''),
-        project.webResearch !== false,
+        project.webResearch !== false ? [webSearch] : [],
       );
       try {
         if (output.stories.length < count) throw new AppError(`Expected ${count} stories.`);
@@ -322,3 +329,55 @@ export const openAIImages: ImageProvider = {
     return { bytes, mime: 'image/png' };
   },
 };
+
+const briefSchema = z.object({
+  name: z.string(),
+  industry: z.string(),
+  description: z.string(),
+  services: z.string(),
+  audience: z.string(),
+  facts: z.string(),
+  rules: z.string(),
+  prohibited: z.string(),
+  visualDirection: z.string(),
+  colors: z.array(z.string()),
+  font: z.enum(['Inter', 'Lora']),
+  email: z.string(),
+  phone: z.string(),
+  address: z.string(),
+  location: z.string(),
+});
+const hex = /^#[0-9a-fA-F]{6}$/;
+// Drafts a project brief from the brand's website (and public mentions) for the admin to review.
+export async function draftBrief(input: { website: string; instagram: string }) {
+  assertLiveConfigured();
+  const { output } = await parse(
+    briefSchema,
+    `Prepare a brief for a new brand account.
+Website: ${input.website || 'none given'}
+Instagram profile: ${input.instagram || 'none given'}
+
+Read the website with web_fetch (home page plus at most a few key pages such as about, menu, services, or contact). Use web_search only to confirm the business name, location, or what it offers if the website is missing or thin; Instagram pages usually cannot be read, so do not rely on them.
+
+Fill every field:
+- description: 2-3 sentences on what the business is and what makes it distinct.
+- services: main products or services, comma-separated.
+- audience: who they serve.
+- facts: one verifiable fact per line, taken only from what you read (offers, specialties, history, opening hours). No guesses.
+- rules: tone of voice and language for stories, based on how the brand writes.
+- prohibited: sensible topics to avoid for this kind of business, comma-separated.
+- visualDirection: one sentence describing imagery that fits the brand.
+- colors: exactly three six-digit hex colors from the brand (background, accent, soft secondary); guess tastefully if the site gives no clear palette.
+- font: "Lora" for classic, warm, or premium brands, otherwise "Inter".
+- email, phone, address, location: public contact details if listed, else empty strings.`,
+    [webFetch, webSearch],
+    'You set up brand briefs for a creative agency that writes Instagram Stories. Be accurate: copy facts only from sources you actually read, and leave a field empty rather than invent it.',
+  );
+  const colors = output.colors.filter((c) => hex.test(c)).slice(0, 3);
+  return {
+    ...output,
+    colors: colors.length === 3 ? colors : ['#f3eee8', '#2525e0', '#e8e6f7'],
+    website: input.website,
+    instagram: input.instagram,
+  };
+}

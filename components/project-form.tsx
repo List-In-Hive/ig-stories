@@ -1,8 +1,8 @@
 'use client';
 import { useState } from 'react';
-import { Upload, Check } from 'lucide-react';
+import { Upload, Check, Sparkles } from 'lucide-react';
 import type { Project } from '@/lib/types';
-import { Button, Field, Modal } from './ui';
+import { api, Button, Field, Modal } from './ui';
 const defaults = {
   name: '',
   industry: '',
@@ -41,6 +41,32 @@ export default function ProjectForm({
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
+  const [quick, setQuick] = useState({ handle: '', website: '' });
+  const [drafting, setDrafting] = useState(false);
+  const [drafted, setDrafted] = useState(false);
+  const [quickError, setQuickError] = useState('');
+  // Claude reads the website and fills the brief; nothing is saved until the admin reviews it.
+  async function draft() {
+    setDrafting(true);
+    setQuickError('');
+    try {
+      const website =
+        quick.website && !/^https?:\/\//.test(quick.website)
+          ? `https://${quick.website}`
+          : quick.website;
+      const brief = await api<Partial<typeof defaults>>('/api/command', {
+        action: 'draftBrief',
+        website,
+        handle: quick.handle,
+      });
+      setForm((f) => ({ ...f, ...brief, logoId: f.logoId, status: f.status }));
+      setDrafted(true);
+    } catch (e) {
+      setQuickError((e as Error).message);
+    } finally {
+      setDrafting(false);
+    }
+  }
   function update(key: string, value: unknown) {
     setForm((f) => ({ ...f, [key]: value }));
   }
@@ -112,6 +138,49 @@ export default function ProjectForm({
         <div className="modal-body">
           {tab === 'Brief' && (
             <>
+              {!project && (
+                <div className="surface quick-start">
+                  <div>
+                    <strong>
+                      <Sparkles size={16} /> Quick start with AI
+                    </strong>
+                    <small>
+                      {drafted
+                        ? 'Brief drafted from the website. Check every tab, then create the project.'
+                        : 'Enter the Instagram handle and website. Claude reads the site and fills in the brief, palette, and contacts for you to review.'}
+                    </small>
+                  </div>
+                  <div className="quick-start-fields">
+                    <input
+                      value={quick.handle}
+                      placeholder="@instagram_handle"
+                      autoCapitalize="none"
+                      onChange={(e) => setQuick((q) => ({ ...q, handle: e.target.value }))}
+                    />
+                    <input
+                      value={quick.website}
+                      placeholder="brand-website.com"
+                      inputMode="url"
+                      autoCapitalize="none"
+                      onChange={(e) => setQuick((q) => ({ ...q, website: e.target.value }))}
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      busy={drafting}
+                      disabled={!quick.handle.trim() && !quick.website.trim()}
+                      onClick={() => void draft()}
+                    >
+                      {drafting ? 'Reading the website…' : 'Fill brief with AI'}
+                    </Button>
+                  </div>
+                  {quickError && (
+                    <p className="form-error" role="alert">
+                      {quickError}
+                    </p>
+                  )}
+                </div>
+              )}
               <div className="form-grid">
                 <Field label="Project name *">{input('name', 'e.g. Sunday Coffee')}</Field>
                 <Field label="Industry *">{input('industry', 'e.g. Coffee & café')}</Field>
