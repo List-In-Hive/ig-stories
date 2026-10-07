@@ -11,7 +11,7 @@
     "dev:web": "next dev --hostname 127.0.0.1",
     "worker": "tsx scripts/worker.ts",
     "build": "next build",
-    "start": "concurrently -k -n web,worker \"next start --hostname 127.0.0.1\" \"tsx scripts/worker.ts\"",
+    "start": "concurrently -k -n web,worker \"next start --hostname ${HOST:-0.0.0.0}\" \"tsx scripts/worker.ts\"",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "node --import tsx --test tests/*.test.ts",
@@ -27,6 +27,7 @@
     "@fontsource/montserrat": "^5.3.0",
     "@resvg/resvg-js": "2.6.2",
     "bcryptjs": "^3.0.2",
+    "concurrently": "^9.2.1",
     "dotenv": "^17.2.0",
     "fontkit": "2.0.4",
     "jszip": "^3.10.1",
@@ -36,6 +37,7 @@
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "sharp": "^0.35.5",
+    "tsx": "^4.21.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
@@ -46,17 +48,18 @@
     "@types/node": "^24.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "concurrently": "^9.2.1",
     "eslint": "^10.11.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.12.0",
     "prettier": "^3.9.9",
     "tailwindcss": "4.3.3",
-    "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.71.0"
   },
   "overrides": {
     "shell-quote": "^1.12.0"
+  },
+  "engines": {
+    "node": ">=24.11"
   }
 }
