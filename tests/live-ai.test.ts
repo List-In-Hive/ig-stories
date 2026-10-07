@@ -234,3 +234,14 @@ test('approvals and feedback are remembered for the next plan', async () => {
   );
   assert.match(store.setting(`taste:feedback:${project.id}`, '[]'), /Make it shorter and warmer/);
 });
+
+test('ADMIN_PASSWORD replaces the stored password once and signs out old sessions', async () => {
+  const auth = await import('../lib/auth');
+  const before = auth.localAuth.signIn('admin', '9741faso');
+  assert.throws(() => auth.syncAdminPassword('short'), /12 to 72/);
+  assert.equal(auth.syncAdminPassword('a much longer password'), true);
+  assert.equal(auth.syncAdminPassword('a much longer password'), false);
+  assert.equal(auth.localAuth.session(before.token), null);
+  assert.throws(() => auth.localAuth.signIn('admin', '9741faso'));
+  assert.ok(auth.localAuth.signIn('admin', 'a much longer password').token);
+});
