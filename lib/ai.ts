@@ -58,6 +58,7 @@ const reviewSchema = z.object({
   ),
 });
 export const OPENAI_REVIEW_MODEL = process.env.OPENAI_REVIEW_MODEL || 'gpt-5.5';
+export const OPENAI_VISION_MODEL = process.env.OPENAI_VISION_MODEL || OPENAI_REVIEW_MODEL;
 
 const SYSTEM = `You write Instagram Stories for small brands managed by a creative agency.
 Each story is one 1080x1920 frame: a short headline, one or two sentences of body copy, and a call to action, placed as text over AI-generated background artwork.
@@ -330,7 +331,8 @@ export const openAIImages: ImageProvider = {
   },
 };
 
-const briefSchema = z.object({
+// Claude reads the business (website, search); ChatGPT studies the post photos. Both run at once.
+const businessSchema = z.object({
   name: z.string(),
   industry: z.string(),
   description: z.string(),
@@ -347,31 +349,68 @@ const briefSchema = z.object({
   address: z.string(),
   location: z.string(),
 });
+const styleSchema = z.object({
+  visualDirection: z.string(),
+  colors: z.array(z.string()),
+  font: z.enum(['Inter', 'Lora', 'Montserrat']),
+  themes: z.string(),
+  visibleFacts: z.string(),
+  brandName: z.string(),
+  industry: z.string(),
+});
+type Keep = { colors?: string[]; font?: string; visualDirection?: string };
 const hex = /^#[0-9a-fA-F]{6}$/;
-// Drafts a project brief from the brand's website (and public mentions) for the admin to review.
-export async function draftBrief(input: {
-  website: string;
-  instagram: string;
-  photos?: Buffer[];
-  // Styles the admin already set by hand; Claude works with them and never replaces them.
-  keep?: { colors?: string[]; font?: string; visualDirection?: string };
-}) {
-  assertLiveConfigured();
-  const photos = input.photos ?? [];
-  const keep = input.keep ?? {};
+const fontGuide =
+  '"Lora" (serif) for classic, warm, or premium brands, "Montserrat" (geometric, bold) for energetic or modern brands, otherwise "Inter"';
+
+async function studyPhotos(photos: Buffer[], keep: Keep) {
+  const response = await images().responses.parse({
+    model: OPENAI_VISION_MODEL,
+    instructions:
+      "You are an art director studying a brand's Instagram posts so new Instagram Stories match their look. Describe only what the images show.",
+    input: [
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'input_text',
+            text: `These are ${photos.length} images the brand has posted on Instagram.
+- visualDirection: 2-3 sentences an image generator can follow to match the brand's imagery: subjects, photography or illustration style, lighting, composition, and color mood.
+- colors: exactly three six-digit hex colors that define the brand look (background, accent, soft secondary).
+- font: ${fontGuide}, judged from any lettering and the overall feel.
+- themes: recurring subjects and topics, comma-separated.
+- visibleFacts: facts written in the images (offers, prices, opening hours, slogans), one per line; empty if none.
+- brandName and industry: only if clearly shown, else empty strings.${
+              keep.colors || keep.font || keep.visualDirection
+                ? '\nThe admin already chose some styles by hand; they will be kept, so describe the photos honestly anyway.'
+                : ''
+            }`,
+          },
+          ...photos.map((bytes) => ({
+            type: 'input_image' as const,
+            image_url: `data:image/jpeg;base64,${bytes.toString('base64')}`,
+            detail: 'auto' as const,
+          })),
+        ],
+      },
+    ],
+    text: { format: zodTextFormat(styleSchema, 'brand_style') },
+  });
+  const style = response.output_parsed;
+  if (!style) throw new AppError('ChatGPT could not read the photos. Try again.');
+  return style;
+}
+
+async function readBusiness(website: string, instagram: string, keep: Keep) {
   const kept = [
     keep.colors && `brand colors ${keep.colors.join(', ')}`,
     keep.font && `story font ${keep.font === 'Brand' ? "the brand's own typeface" : keep.font}`,
     keep.visualDirection && `visual direction "${keep.visualDirection}"`,
   ].filter(Boolean);
   const text = `Prepare a brief for a new brand account.
-Website: ${input.website || 'none given'}
-Instagram profile: ${input.instagram || 'none given'}
-${
-  photos.length
-    ? `\nAttached are ${photos.length} images the brand has posted on Instagram (photos, possibly a few screenshots). Study them closely: subjects, photography style, lighting, composition, color grading, any lettering and its typography, and recurring themes. Base visualDirection, colors, font, and topics on what they show. Treat any text visible in them as a source of facts.\n`
-    : ''
-}${kept.length ? `\nThe admin has already set the ${kept.join('; ')}. Keep these exactly and make the rest of the brief fit them.\n` : ''}
+Website: ${website || 'none given'}
+Instagram profile: ${instagram || 'none given'}
+${kept.length ? `\nThe admin has already set the ${kept.join('; ')}. Keep these exactly and make the rest of the brief fit them.\n` : ''}
 Read the website with web_fetch (home page plus at most a few key pages such as about, menu, services, or contact). Use web_search only to confirm the business name, location, or what it offers if the website is missing or thin; Instagram pages usually cannot be read, so do not rely on them.
 
 Fill every field:
@@ -381,34 +420,67 @@ Fill every field:
 - facts: one verifiable fact per line, taken only from what you read (offers, specialties, history, opening hours). No guesses.
 - rules: tone of voice and language for stories, based on how the brand writes.
 - prohibited: sensible topics to avoid for this kind of business, comma-separated.
-- visualDirection: 2-3 sentences an image generator can follow to match the brand's imagery: subjects, photography or illustration style, lighting, composition, and color mood.
+- visualDirection: 2-3 sentences an image generator can follow to match the brand's imagery.
 - colors: exactly three six-digit hex colors from the brand (background, accent, soft secondary); guess tastefully if the site gives no clear palette.
-- font: "Lora" (serif) for classic, warm, or premium brands, "Montserrat" (geometric, bold) for energetic or modern brands, otherwise "Inter".
+- font: ${fontGuide}.
 - email, phone, address, location: public contact details if listed, else empty strings.`;
   const { output } = await parse(
-    briefSchema,
-    photos.length
-      ? [
-          ...photos.map((bytes) => ({
-            type: 'image' as const,
-            source: {
-              type: 'base64' as const,
-              media_type: 'image/jpeg' as const,
-              data: bytes.toString('base64'),
-            },
-          })),
-          { type: 'text' as const, text },
-        ]
-      : text,
-    input.website ? [webFetch, webSearch] : [webSearch],
+    businessSchema,
+    text,
+    website ? [webFetch, webSearch] : [webSearch],
     'You set up brand briefs for a creative agency that writes Instagram Stories. Be accurate: copy facts only from sources you actually read, and leave a field empty rather than invent it.',
   );
-  const colors = output.colors.filter((c) => hex.test(c)).slice(0, 3);
+  return output;
+}
+
+const lines = (...values: string[]) =>
+  [
+    ...new Set(
+      values
+        .flatMap((v) => v.split('\n'))
+        .map((v) => v.trim())
+        .filter(Boolean),
+    ),
+  ].join('\n');
+
+// Drafts a project brief for the admin to review. Claude researches the business while ChatGPT
+// studies the post photos in parallel; the photos decide the look, the research decides the words.
+export async function draftBrief(input: {
+  website: string;
+  instagram: string;
+  photos?: Buffer[];
+  // Styles the admin already set by hand; the AI works with them and never replaces them.
+  keep?: Keep;
+}) {
+  assertLiveConfigured();
+  const photos = input.photos ?? [];
+  const keep = input.keep ?? {};
+  const research = input.website || input.instagram;
+  const [business, style] = await Promise.all([
+    research ? readBusiness(input.website, input.instagram, keep) : null,
+    photos.length ? studyPhotos(photos, keep) : null,
+  ]);
+  const colors = (style?.colors.length ? style.colors : (business?.colors ?? []))
+    .filter((c) => hex.test(c))
+    .slice(0, 3);
   return {
-    ...output,
+    name: business?.name || style?.brandName || '',
+    industry: business?.industry || style?.industry || '',
+    description: business?.description || '',
+    services: business?.services || style?.themes || '',
+    audience: business?.audience || '',
+    facts: lines(business?.facts || '', style?.visibleFacts || ''),
+    rules: business?.rules || '',
+    prohibited: business?.prohibited || '',
+    visualDirection: style?.visualDirection || business?.visualDirection || '',
     colors: colors.length === 3 ? colors : ['#f3eee8', '#2525e0', '#e8e6f7'],
-    ...keep,
+    font: style?.font || business?.font || 'Inter',
+    email: business?.email || '',
+    phone: business?.phone || '',
+    address: business?.address || '',
+    location: business?.location || '',
     website: input.website,
     instagram: input.instagram,
+    ...keep,
   };
 }

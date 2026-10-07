@@ -3,6 +3,8 @@ import { useState } from 'react';
 import { Upload, Check, Sparkles } from 'lucide-react';
 import type { BrandFont, FontName, Project } from '@/lib/types';
 import { api, Button, Field, Modal } from './ui';
+// Photos only guide the style, so a 1024 px copy (longest side) is plenty and keeps 20 uploads light.
+const MAX_PHOTOS = 20;
 const defaults = {
   name: '',
   industry: '',
@@ -57,11 +59,11 @@ export default function ProjectForm({
   }
   // Phone photos are shrunk in the browser before upload to keep the request light.
   async function addPhotos(files: FileList | null) {
-    const picked = Array.from(files || []).slice(0, 10 - photos.length);
+    const picked = Array.from(files || []).slice(0, MAX_PHOTOS - photos.length);
     const encoded = await Promise.all(
       picked.map(async (file) => {
         const bitmap = await createImageBitmap(file);
-        const scale = Math.min(1, 1280 / Math.max(bitmap.width, bitmap.height));
+        const scale = Math.min(1, 1024 / Math.max(bitmap.width, bitmap.height));
         const canvas = document.createElement('canvas');
         canvas.width = Math.round(bitmap.width * scale);
         canvas.height = Math.round(bitmap.height * scale);
@@ -69,7 +71,7 @@ export default function ProjectForm({
         return canvas.toDataURL('image/jpeg', 0.8);
       }),
     );
-    setPhotos((current) => [...current, ...encoded].slice(0, 10));
+    setPhotos((current) => [...current, ...encoded].slice(0, MAX_PHOTOS));
   }
   // Claude reads the website and fills the brief; nothing is saved until the admin reviews it.
   async function draft() {
@@ -205,10 +207,10 @@ export default function ProjectForm({
                     </strong>
                     <small>
                       {drafting
-                        ? 'Claude is studying the photos and website. This usually takes 20–60 seconds; keep this window open.'
+                        ? 'ChatGPT is studying the photos while Claude reads the website. This usually takes 20–60 seconds; keep this window open.'
                         : drafted
                           ? 'Brief drafted. Check every tab, then create the project.'
-                          : 'Enter the Instagram handle and website, and add up to 10 photos the brand has posted. Claude studies them and fills in the brief, style, palette, and contacts for you to review. Colors and fonts you set on the Branding tab are kept.'}
+                          : 'Enter the Instagram handle and website, and add up to 20 photos the brand has posted. ChatGPT studies the photos for style and palette while Claude researches the business, at the same time. Review the result before creating the project; colors and fonts you set on the Branding tab are kept.'}
                     </small>
                   </div>
                   <div className="quick-start-fields">
@@ -246,7 +248,7 @@ export default function ProjectForm({
                         <img src={src} alt="" />
                       </button>
                     ))}
-                    {photos.length < 10 && (
+                    {photos.length < MAX_PHOTOS && (
                       <label className="btn ghost small">
                         <Upload size={14} />
                         {photos.length ? 'Add more' : 'Add post photos'}

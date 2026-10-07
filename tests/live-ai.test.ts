@@ -30,6 +30,8 @@ const requests: { prompt: string }[] = [];
 let replies: unknown[] = [];
 let searchResults: string[] = [];
 let reviews: unknown[] = [];
+let styles: unknown[] = [];
+const visionRequests: unknown[] = [];
 const allPassed = { reviews: [0, 1, 2, 3].map((index) => ({ index, passed: true, issues: [] })) };
 const png = await sharp({
   create: { width: 1024, height: 1536, channels: 3, background: '#c28660' },
@@ -58,7 +60,14 @@ ai.setLiveClients({
     },
   } as never,
   openai: {
-    responses: { parse: async () => ({ output_parsed: reviews.shift() ?? allPassed }) },
+    responses: {
+      parse: async (params: { text: { format: { name: string } }; input: unknown }) => {
+        if (params.text.format.name !== 'brand_style')
+          return { output_parsed: reviews.shift() ?? allPassed };
+        visionRequests.push(params.input);
+        return { output_parsed: styles.shift() };
+      },
+    },
     images: {
       generate: async () => {
         imageCalls++;
@@ -282,7 +291,7 @@ test('AI quick start drafts a brief from the website for review', async () => {
   assert.equal(service.getProject(saved.id).instagram, 'https://www.instagram.com/fern/');
 });
 
-test('post photos are cleaned and sent to Claude, and hand-set styles are kept', async () => {
+test('ChatGPT studies post photos while Claude researches, and hand-set styles are kept', async () => {
   const storage = await import('../lib/storage');
   await assert.rejects(storage.normalizePhoto('bm90IGFuIGltYWdl'), /could not be read/);
   const tall = await sharp({
@@ -298,36 +307,75 @@ test('post photos are cleaned and sent to Claude, and hand-set styles are kept',
     {
       name: 'Shot Studio',
       industry: 'Design',
-      description: 'A studio.',
-      services: '',
-      audience: '',
-      facts: '',
-      rules: '',
-      prohibited: '',
-      visualDirection: 'Lilac minimal',
-      colors: ['#ebe8f3', '#9d91b9', '#ded9e9'],
+      description: 'A design studio in Yerevan.',
+      services: 'Branding',
+      audience: 'Founders',
+      facts: 'Founded in 2019',
+      rules: 'Confident and brief.',
+      prohibited: 'Politics',
+      visualDirection: 'Website guess',
+      colors: ['#000000', '#111111', '#222222'],
       font: 'Inter',
-      email: '',
+      email: 'hi@shot.example',
       phone: '',
       address: '',
-      location: '',
+      location: 'Yerevan',
     },
   ];
+  styles = [
+    {
+      visualDirection: 'Lilac minimal flat lays in soft daylight',
+      colors: ['#ebe8f3', '#9d91b9', '#ded9e9'],
+      font: 'Montserrat',
+      themes: 'Desks, sketches',
+      visibleFacts: 'Free consultation every Friday\nFounded in 2019',
+      brandName: 'Shot',
+      industry: '',
+    },
+  ];
+  const photos = Array.from({ length: 20 }, () => shot);
   const brief = await ai.draftBrief({
+    website: 'https://shot.example',
+    instagram: '',
+    photos,
+  });
+  // Claude gets text only; the 20 photos go to ChatGPT.
+  assert.equal(typeof requests[0].prompt, 'string');
+  assert.match(requests[0].prompt, /shot\.example/);
+  const vision = visionRequests[0] as { content: { type: string }[] }[];
+  assert.equal(vision[0].content.filter((b) => b.type === 'input_image').length, 20);
+  assert.equal(brief.name, 'Shot Studio');
+  assert.equal(brief.visualDirection, 'Lilac minimal flat lays in soft daylight');
+  assert.deepEqual(brief.colors, ['#ebe8f3', '#9d91b9', '#ded9e9']);
+  assert.equal(brief.font, 'Montserrat');
+  assert.equal(brief.facts, 'Founded in 2019\nFree consultation every Friday');
+  assert.equal(brief.email, 'hi@shot.example');
+
+  // Photos alone skip Claude, and styles set by hand win over both models.
+  requests.length = 0;
+  styles = [
+    {
+      ...(styles[0] ?? {}),
+      visualDirection: 'From photos',
+      colors: ['#ebe8f3', '#9d91b9', '#ded9e9'],
+      font: 'Lora',
+      themes: '',
+      visibleFacts: '',
+      brandName: 'Shot',
+      industry: 'Design',
+    },
+  ];
+  const kept = await ai.draftBrief({
     website: '',
     instagram: '',
-    photos: [shot, shot],
+    photos: [shot],
     keep: { colors: ['#112233', '#445566', '#778899'], font: 'Brand' },
   });
-  const content = requests[0].prompt as unknown as { type: string; text?: string }[];
-  assert.deepEqual(
-    content.map((b) => b.type),
-    ['image', 'image', 'text'],
-  );
-  assert.match(content[2].text!, /already set the brand colors #112233, #445566, #778899/);
-  assert.deepEqual(brief.colors, ['#112233', '#445566', '#778899']);
-  assert.equal(brief.font, 'Brand');
-  assert.equal(brief.visualDirection, 'Lilac minimal');
+  assert.equal(requests.length, 0);
+  assert.deepEqual(kept.colors, ['#112233', '#445566', '#778899']);
+  assert.equal(kept.font, 'Brand');
+  assert.equal(kept.visualDirection, 'From photos');
+  assert.equal(kept.name, 'Shot');
 });
 
 test('an uploaded brand font is validated, frozen into stories, and used for rendering', async () => {

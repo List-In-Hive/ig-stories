@@ -50,7 +50,7 @@ Engagement stories (polls, questions, DM prompts) are only produced for projects
 
 ## Adding an account
 
-The project form's **Quick start with AI** takes the Instagram handle, the website, and up to 10 photos the brand has posted. Claude studies the photos (subjects, photo style, lighting, colors, lettering) and the website, then fills in the brief, visual direction, palette, and font for review. Photos are shrunk to 1280 px in the browser before upload.
+The project form's **Quick start with AI** takes the Instagram handle, the website, and up to 20 photos the brand has posted. Two models work in parallel: ChatGPT (`OPENAI_VISION_MODEL`, default `OPENAI_REVIEW_MODEL`) studies the photos for visual direction, palette, font, recurring themes, and any facts written on them, while Claude reads the website (with web search when it is thin) for the description, services, audience, facts, tone, and contacts. The photos decide the look and the research decides the words; nothing is saved until the admin reviews the form. Photos are shrunk to 1024 px in the browser before upload.
 
 Styles set by hand on the Branding tab are kept when the AI fills the brief: the palette (color picker or pasted hex code), the default font (Inter, Lora, Montserrat, or an uploaded brand font), and the visual direction. A brand font is a `.ttf` or `.otf` file, with an optional bold file for headlines; it is frozen into each story so later changes do not alter earlier drafts.
 

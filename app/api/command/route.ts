@@ -39,7 +39,7 @@ export async function POST(request: Request) {
           .object({
             website: z.union([z.literal(''), z.url()]).default(''),
             handle: z.string().max(60).default(''),
-            photos: z.array(z.string().max(2_000_000)).max(10).default([]),
+            photos: z.array(z.string().max(2_000_000)).max(20).default([]),
             keep: z
               .object({
                 colors: z
