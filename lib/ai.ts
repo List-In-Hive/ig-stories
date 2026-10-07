@@ -341,7 +341,7 @@ const briefSchema = z.object({
   prohibited: z.string(),
   visualDirection: z.string(),
   colors: z.array(z.string()),
-  font: z.enum(['Inter', 'Lora']),
+  font: z.enum(['Inter', 'Lora', 'Montserrat']),
   email: z.string(),
   phone: z.string(),
   address: z.string(),
@@ -352,18 +352,26 @@ const hex = /^#[0-9a-fA-F]{6}$/;
 export async function draftBrief(input: {
   website: string;
   instagram: string;
-  screenshots?: Buffer[];
+  photos?: Buffer[];
+  // Styles the admin already set by hand; Claude works with them and never replaces them.
+  keep?: { colors?: string[]; font?: string; visualDirection?: string };
 }) {
   assertLiveConfigured();
-  const screenshots = input.screenshots ?? [];
+  const photos = input.photos ?? [];
+  const keep = input.keep ?? {};
+  const kept = [
+    keep.colors && `brand colors ${keep.colors.join(', ')}`,
+    keep.font && `story font ${keep.font === 'Brand' ? "the brand's own typeface" : keep.font}`,
+    keep.visualDirection && `visual direction "${keep.visualDirection}"`,
+  ].filter(Boolean);
   const text = `Prepare a brief for a new brand account.
 Website: ${input.website || 'none given'}
 Instagram profile: ${input.instagram || 'none given'}
 ${
-  screenshots.length
-    ? `\nAttached are ${screenshots.length} screenshots of the brand's Instagram profile and posts. Study them closely: the visual style, colors, typography feel, recurring topics, tone of the captions, and any facts they state. Base visualDirection, colors, rules, and topics on what they show.\n`
+  photos.length
+    ? `\nAttached are ${photos.length} images the brand has posted on Instagram (photos, possibly a few screenshots). Study them closely: subjects, photography style, lighting, composition, color grading, any lettering and its typography, and recurring themes. Base visualDirection, colors, font, and topics on what they show. Treat any text visible in them as a source of facts.\n`
     : ''
-}
+}${kept.length ? `\nThe admin has already set the ${kept.join('; ')}. Keep these exactly and make the rest of the brief fit them.\n` : ''}
 Read the website with web_fetch (home page plus at most a few key pages such as about, menu, services, or contact). Use web_search only to confirm the business name, location, or what it offers if the website is missing or thin; Instagram pages usually cannot be read, so do not rely on them.
 
 Fill every field:
@@ -373,15 +381,15 @@ Fill every field:
 - facts: one verifiable fact per line, taken only from what you read (offers, specialties, history, opening hours). No guesses.
 - rules: tone of voice and language for stories, based on how the brand writes.
 - prohibited: sensible topics to avoid for this kind of business, comma-separated.
-- visualDirection: one sentence describing imagery that fits the brand.
+- visualDirection: 2-3 sentences an image generator can follow to match the brand's imagery: subjects, photography or illustration style, lighting, composition, and color mood.
 - colors: exactly three six-digit hex colors from the brand (background, accent, soft secondary); guess tastefully if the site gives no clear palette.
-- font: "Lora" for classic, warm, or premium brands, otherwise "Inter".
+- font: "Lora" (serif) for classic, warm, or premium brands, "Montserrat" (geometric, bold) for energetic or modern brands, otherwise "Inter".
 - email, phone, address, location: public contact details if listed, else empty strings.`;
   const { output } = await parse(
     briefSchema,
-    screenshots.length
+    photos.length
       ? [
-          ...screenshots.map((bytes) => ({
+          ...photos.map((bytes) => ({
             type: 'image' as const,
             source: {
               type: 'base64' as const,
@@ -399,6 +407,7 @@ Fill every field:
   return {
     ...output,
     colors: colors.length === 3 ? colors : ['#f3eee8', '#2525e0', '#e8e6f7'],
+    ...keep,
     website: input.website,
     instagram: input.instagram,
   };

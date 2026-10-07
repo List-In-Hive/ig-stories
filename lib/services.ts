@@ -26,7 +26,7 @@ import {
   CLAUDE_MODEL,
   OPENAI_IMAGE_MODEL,
 } from './ai';
-import { localStorage } from './storage';
+import { localStorage, readFamily } from './storage';
 import { defaultLayout, validateComposition, snapshotFonts } from './composition';
 import type {
   AppState,
@@ -43,6 +43,7 @@ import type {
 } from './types';
 const text = z.string().max(5000).default('');
 const color = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Use a six-digit hex color.');
+const FONTS = ['Inter', 'Lora', 'Montserrat', 'Brand'] as const;
 export const projectSchema = z.object({
   name: z.string().trim().min(2).max(80),
   industry: z.string().trim().min(2).max(80),
@@ -59,7 +60,15 @@ export const projectSchema = z.object({
     .default(''),
   visualDirection: text,
   colors: z.array(color).length(3),
-  font: z.enum(['Inter', 'Lora']).default('Inter'),
+  font: z.enum(FONTS).default('Inter'),
+  brandFont: z
+    .object({
+      name: z.string().trim().min(1).max(60),
+      regular: z.object({ id: z.string(), family: z.string().min(1).max(120) }),
+      bold: z.object({ id: z.string(), family: z.string().min(1).max(120) }).nullable(),
+    })
+    .nullable()
+    .default(null),
   rules: text,
   prohibited: text,
   facts: text,
@@ -86,7 +95,7 @@ const layerSchema = z.object({
   width: z.number().min(100).max(1080),
   size: z.number().min(12).max(180),
   color,
-  font: z.enum(['Inter', 'Lora']),
+  font: z.enum(FONTS),
   align: z.enum(['left', 'center', 'right']),
   visible: z.boolean(),
 });
@@ -153,6 +162,15 @@ export function saveProject(input: unknown, projectId?: string) {
       const asset = one<{ kind: string }>('SELECT kind FROM assets WHERE id=?', parsed.logoId);
       if (!asset || asset.kind !== 'logo') throw new AppError('Choose a valid uploaded logo.');
     }
+    for (const file of [parsed.brandFont?.regular, parsed.brandFont?.bold]) {
+      if (!file) continue;
+      const asset = one<{ kind: string }>('SELECT kind FROM assets WHERE id=?', file.id);
+      if (!asset || asset.kind !== 'brand-font') throw new AppError('Upload the brand font again.');
+      // The renderer matches the name inside the file, so it is read here rather than trusted.
+      file.family = readFamily(localStorage.read(file.id).bytes);
+    }
+    if (parsed.font === 'Brand' && !parsed.brandFont)
+      throw new AppError('Upload a brand font or choose another default font.');
     const projectKey = projectId || id();
     if (projectId)
       run(
@@ -175,7 +193,11 @@ export function saveProject(input: unknown, projectId?: string) {
         now(),
         now(),
       );
-    registerProjectAssets(projectKey, [parsed.logoId]);
+    registerProjectAssets(projectKey, [
+      parsed.logoId,
+      parsed.brandFont?.regular.id ?? null,
+      parsed.brandFont?.bold?.id ?? null,
+    ]);
     if (previous && previous.allowEngagement !== parsed.allowEngagement)
       run(
         "DELETE FROM run_scripts WHERE runId IN (SELECT id FROM runs WHERE projectId=? AND status IN ('queued','running','failed'))",
@@ -350,7 +372,7 @@ export async function makeSnapshot(project: Project, slot: number, seed: number,
       ...providerDetails(),
       seed,
       prompt: script.visual,
-      fontAssets: snapshotFonts(),
+      fontAssets: snapshotFonts(project),
     } satisfies Snapshot;
     registerProjectAssets(project.id, snapshotAssetIds(snapshot));
     return snapshot;

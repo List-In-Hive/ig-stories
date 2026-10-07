@@ -1,5 +1,12 @@
 export type Role = 'admin';
 export type User = { id: string; name: string; username: string; role: Role; active: number };
+export type FontName = 'Inter' | 'Lora' | 'Montserrat' | 'Brand';
+// An uploaded brand typeface; `family` is the name stored inside the font file.
+export type BrandFont = {
+  name: string;
+  regular: { id: string; family: string };
+  bold: { id: string; family: string } | null;
+};
 export type Project = {
   id: string;
   name: string;
@@ -11,7 +18,8 @@ export type Project = {
   instagram: string;
   visualDirection: string;
   colors: string[];
-  font: 'Inter' | 'Lora';
+  font: FontName;
+  brandFont?: BrandFont | null;
   rules: string;
   prohibited: string;
   facts: string;
@@ -34,7 +42,7 @@ export type Layer = {
   width: number;
   size: number;
   color: string;
-  font: 'Inter' | 'Lora';
+  font: FontName;
   align: 'left' | 'center' | 'right';
   visible: boolean;
 };

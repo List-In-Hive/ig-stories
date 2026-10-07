@@ -48,6 +48,12 @@ Written feedback in the editor is applied by Claude: text feedback rewrites the 
 
 Engagement stories (polls, questions, DM prompts) are only produced for projects with "Allow questions & response prompts" turned on, and the server enforces this on every path.
 
+## Adding an account
+
+The project form's **Quick start with AI** takes the Instagram handle, the website, and up to 10 photos the brand has posted. Claude studies the photos (subjects, photo style, lighting, colors, lettering) and the website, then fills in the brief, visual direction, palette, and font for review. Photos are shrunk to 1280 px in the browser before upload.
+
+Styles set by hand on the Branding tab are kept when the AI fills the brief: the palette (color picker or pasted hex code), the default font (Inter, Lora, Montserrat, or an uploaded brand font), and the visual direction. A brand font is a `.ttf` or `.otf` file, with an optional bold file for headlines; it is frozen into each story so later changes do not alter earlier drafts.
+
 ## Scheduling and the queue
 
 - Each project has its own **daily generation time** (project form, default 08:00). Times are in the **workspace time zone** (Settings → Automation; default `TIME_ZONE`). Daylight-saving changes are handled; a time skipped by a clock change runs at the first valid minute after it.

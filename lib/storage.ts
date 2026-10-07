@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import sharp from 'sharp';
+import * as fontkit from 'fontkit';
 import { dataDir, id, now, one, run } from './db';
 import { AppError, requireValue } from './errors';
 import type { FileStorage } from './types';
@@ -9,7 +10,9 @@ fs.mkdirSync(directory, { recursive: true });
 export const localStorage: FileStorage = {
   put(bytes, mime, kind, width, height) {
     const assetId = id();
-    const filename = `${assetId}.${mime === 'image/svg+xml' ? 'svg' : mime === 'font/ttf' ? 'ttf' : 'png'}`;
+    const extension =
+      { 'image/svg+xml': 'svg', 'font/ttf': 'ttf', 'font/otf': 'otf' }[mime] || 'png';
+    const filename = `${assetId}.${extension}`;
     fs.writeFileSync(path.join(directory, filename), bytes);
     run(
       'INSERT INTO assets VALUES(?,?,?,?,?,?,?)',
@@ -25,7 +28,9 @@ export const localStorage: FileStorage = {
       'INSERT INTO asset_cleanup_candidates VALUES(?,?,?)',
       assetId,
       now(),
-      kind === 'logo' ? new Date(Date.now() + 3600000).toISOString() : null,
+      kind === 'logo' || kind === 'brand-font'
+        ? new Date(Date.now() + 3600000).toISOString()
+        : null,
     );
     return assetId;
   },
@@ -63,9 +68,9 @@ export async function uploadLogo(bytes: Buffer, mime: string) {
   }
 }
 
-// Screenshots arrive as base64 data from the browser; re-encoding them through sharp
+// Post photos arrive as base64 data from the browser; re-encoding them through sharp
 // rejects anything that is not a real image and keeps each one small for the AI request.
-export async function normalizeScreenshot(data: string) {
+export async function normalizePhoto(data: string) {
   try {
     return await sharp(Buffer.from(data.replace(/^data:[^,]+,/, ''), 'base64'), {
       limitInputPixels: 40_000_000,
@@ -75,6 +80,30 @@ export async function normalizeScreenshot(data: string) {
       .jpeg({ quality: 80 })
       .toBuffer();
   } catch {
-    throw new AppError('A screenshot could not be read. Use PNG or JPEG images.');
+    throw new AppError('A photo could not be read. Use JPEG or PNG images.');
+  }
+}
+
+// Brand fonts must be single TrueType or OpenType files, the formats the story renderer reads.
+export function uploadFont(bytes: Buffer) {
+  const signature = bytes.subarray(0, 4).toString('latin1');
+  const otf = signature === 'OTTO';
+  if (bytes.length > 10 * 1024 * 1024) throw new AppError('Choose a font file smaller than 10 MB.');
+  if (!otf && signature !== '\0\x01\0\0' && signature !== 'true')
+    throw new AppError(
+      'Upload a .ttf or .otf font file. WOFF and font collections are not supported.',
+    );
+  const family = readFamily(bytes);
+  const id = localStorage.put(bytes, otf ? 'font/otf' : 'font/ttf', 'brand-font', 0, 0);
+  return { id, family };
+}
+export function readFamily(bytes: Buffer) {
+  try {
+    const font = fontkit.create(bytes) as fontkit.Font;
+    const family = font.familyName?.trim();
+    if (!family || !font.glyphForCodePoint(0x41)?.id) throw new Error('No usable glyphs');
+    return family;
+  } catch {
+    throw new AppError('This font could not be read. Try another .ttf or .otf file.');
   }
 }

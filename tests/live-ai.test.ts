@@ -282,17 +282,15 @@ test('AI quick start drafts a brief from the website for review', async () => {
   assert.equal(service.getProject(saved.id).instagram, 'https://www.instagram.com/fern/');
 });
 
-test('Instagram screenshots are cleaned and sent to Claude as images', async () => {
+test('post photos are cleaned and sent to Claude, and hand-set styles are kept', async () => {
   const storage = await import('../lib/storage');
-  await assert.rejects(storage.normalizeScreenshot('bm90IGFuIGltYWdl'), /could not be read/);
+  await assert.rejects(storage.normalizePhoto('bm90IGFuIGltYWdl'), /could not be read/);
   const tall = await sharp({
     create: { width: 1170, height: 2532, channels: 3, background: '#fff' },
   })
     .png()
     .toBuffer();
-  const shot = await storage.normalizeScreenshot(
-    `data:image/png;base64,${tall.toString('base64')}`,
-  );
+  const shot = await storage.normalizePhoto(`data:image/png;base64,${tall.toString('base64')}`);
   const meta = await sharp(shot).metadata();
   assert.deepEqual([meta.format, meta.height! <= 1280], ['jpeg', true]);
   requests.length = 0;
@@ -315,10 +313,52 @@ test('Instagram screenshots are cleaned and sent to Claude as images', async () 
       location: '',
     },
   ];
-  await ai.draftBrief({ website: '', instagram: '', screenshots: [shot, shot] });
-  const content = requests[0].prompt as unknown as { type: string }[];
+  const brief = await ai.draftBrief({
+    website: '',
+    instagram: '',
+    photos: [shot, shot],
+    keep: { colors: ['#112233', '#445566', '#778899'], font: 'Brand' },
+  });
+  const content = requests[0].prompt as unknown as { type: string; text?: string }[];
   assert.deepEqual(
     content.map((b) => b.type),
     ['image', 'image', 'text'],
   );
+  assert.match(content[2].text!, /already set the brand colors #112233, #445566, #778899/);
+  assert.deepEqual(brief.colors, ['#112233', '#445566', '#778899']);
+  assert.equal(brief.font, 'Brand');
+  assert.equal(brief.visualDirection, 'Lilac minimal');
+});
+
+test('an uploaded brand font is validated, frozen into stories, and used for rendering', async () => {
+  const storage = await import('../lib/storage');
+  const composition = await import('../lib/composition');
+  assert.throws(() => storage.uploadFont(Buffer.from('not a font at all')), /\.ttf or \.otf/);
+  const bytes = fs.readFileSync(path.join(process.cwd(), 'public/fonts/Montserrat-ExtraBold.ttf'));
+  const regular = storage.uploadFont(bytes);
+  assert.equal(regular.family, 'Montserrat ExtraBold');
+  const base = service.getProject(project.id);
+  const draft = { ...base, font: 'Brand', brandFont: null };
+  assert.throws(() => service.saveProject(draft, project.id), /Upload a brand font/);
+  const saved = service.saveProject(
+    {
+      ...draft,
+      // A wrong family from the browser is replaced by the name inside the file.
+      brandFont: { name: 'Fern Display', regular: { ...regular, family: 'Spoofed' }, bold: null },
+    },
+    project.id,
+  );
+  assert.equal(saved.brandFont!.regular.family, 'Montserrat ExtraBold');
+  store.setSetting('providerMode', 'demo');
+  const made = await service.createManual(project.id, story('Brand type'), admin.id, 'brand-font');
+  const snapshot = made.version.data;
+  assert.equal(snapshot.fontAssets!.Brand, regular.id);
+  assert.equal(snapshot.layout.headline.font, 'Brand');
+  assert.match(composition.renderSvg(snapshot), /font-family="Montserrat ExtraBold"/);
+  const branded = composition.renderPng(snapshot);
+  const plain = structuredClone(snapshot);
+  for (const key of ['headline', 'body', 'cta', 'contact'] as const)
+    plain.layout[key].font = 'Inter';
+  assert.notDeepEqual(branded, composition.renderPng(plain));
+  service.saveProject({ ...saved, font: 'Inter', brandFont: null }, project.id);
 });

@@ -19,7 +19,7 @@ import {
   ShieldCheck,
   AlertCircle,
 } from 'lucide-react';
-import type { Layer, Layout, Story, Version } from '@/lib/types';
+import type { FontName, Layer, Layout, Story, Version } from '@/lib/types';
 import { api, Button, Badge, Field, formatTime } from './ui';
 import SaveStories from './save-stories';
 import type { Command } from './workspace';
@@ -343,11 +343,17 @@ export default function StoryEditor({
                       <select
                         value={(selected as Layer).font}
                         onChange={(e) =>
-                          update(selectedLayer, { font: e.target.value as 'Inter' | 'Lora' })
+                          update(selectedLayer, { font: e.target.value as FontName })
                         }
                       >
                         <option>Inter</option>
                         <option>Lora</option>
+                        <option>Montserrat</option>
+                        {story.version.data.fontAssets?.Brand && (
+                          <option value="Brand">
+                            {story.version.data.project.brandFont?.name || 'Brand font'}
+                          </option>
+                        )}
                       </select>
                     </Field>
                     <div className="form-grid">

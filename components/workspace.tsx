@@ -1302,7 +1302,12 @@ function ProjectDetails({
               ))}
             </div>
             <h3>Typography</h3>
-            <p style={{ fontFamily: project.font, fontSize: 26 }}>
+            <p
+              style={{
+                fontFamily: project.font === 'Brand' ? undefined : project.font,
+                fontSize: 26,
+              }}
+            >
               {project.font} · Considered stories, every day.
             </p>
             <h3>Visual direction</h3>

@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { Upload, Check, Sparkles } from 'lucide-react';
-import type { Project } from '@/lib/types';
+import type { BrandFont, FontName, Project } from '@/lib/types';
 import { api, Button, Field, Modal } from './ui';
 const defaults = {
   name: '',
@@ -13,7 +13,8 @@ const defaults = {
   instagram: '',
   visualDirection: '',
   colors: ['#ece6f4', '#9d88be', '#f5f1fa'],
-  font: 'Inter' as const,
+  font: 'Inter' as FontName,
+  brandFont: null as BrandFont | null,
   rules: 'Use clear, thoughtful English. Use only approved project facts.',
   prohibited: '',
   facts: '',
@@ -45,10 +46,17 @@ export default function ProjectForm({
   const [drafting, setDrafting] = useState(false);
   const [drafted, setDrafted] = useState(false);
   const [quickError, setQuickError] = useState('');
-  const [shots, setShots] = useState<string[]>([]);
-  // Phone screenshots are shrunk in the browser before upload to keep the request light.
-  async function addShots(files: FileList | null) {
-    const picked = Array.from(files || []).slice(0, 10 - shots.length);
+  const [photos, setPhotos] = useState<string[]>([]);
+  // Styles the admin set by hand; the AI draft keeps them instead of replacing them.
+  const [manual, setManual] = useState<Set<'colors' | 'font' | 'visualDirection'>>(new Set());
+  const [fontUploading, setFontUploading] = useState(false);
+  function setStyle(key: 'colors' | 'font' | 'visualDirection', value: unknown) {
+    update(key, value);
+    setManual((current) => new Set(current).add(key));
+  }
+  // Phone photos are shrunk in the browser before upload to keep the request light.
+  async function addPhotos(files: FileList | null) {
+    const picked = Array.from(files || []).slice(0, 10 - photos.length);
     const encoded = await Promise.all(
       picked.map(async (file) => {
         const bitmap = await createImageBitmap(file);
@@ -60,7 +68,7 @@ export default function ProjectForm({
         return canvas.toDataURL('image/jpeg', 0.8);
       }),
     );
-    setShots((current) => [...current, ...encoded].slice(0, 10));
+    setPhotos((current) => [...current, ...encoded].slice(0, 10));
   }
   // Claude reads the website and fills the brief; nothing is saved until the admin reviews it.
   async function draft() {
@@ -75,7 +83,8 @@ export default function ProjectForm({
         action: 'draftBrief',
         website,
         handle: quick.handle,
-        screenshots: shots,
+        photos,
+        keep: Object.fromEntries([...manual].map((key) => [key, form[key]])),
       });
       setForm((f) => ({ ...f, ...brief, logoId: f.logoId, status: f.status }));
       setDrafted(true);
@@ -87,6 +96,30 @@ export default function ProjectForm({
   }
   function update(key: string, value: unknown) {
     setForm((f) => ({ ...f, [key]: value }));
+  }
+  async function uploadFont(file: File | undefined, weight: 'regular' | 'bold') {
+    if (!file) return;
+    setFontUploading(true);
+    setError('');
+    try {
+      const body = new FormData();
+      body.append('file', file);
+      body.append('kind', 'font');
+      const response = await fetch('/api/assets', { method: 'POST', body });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+      const current = form.brandFont;
+      const next: BrandFont =
+        weight === 'regular'
+          ? { name: current?.name || data.family, regular: data, bold: current?.bold ?? null }
+          : { name: current!.name, regular: current!.regular, bold: data };
+      update('brandFont', next);
+      if (weight === 'regular') setStyle('font', 'Brand');
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setFontUploading(false);
+    }
   }
   async function upload(file?: File) {
     if (!file) return;
@@ -164,8 +197,8 @@ export default function ProjectForm({
                     </strong>
                     <small>
                       {drafted
-                        ? 'Brief drafted from the website. Check every tab, then create the project.'
-                        : 'Enter the Instagram handle and website, and add up to 10 screenshots of the profile and posts. Claude studies them and fills in the brief, palette, and contacts for you to review.'}
+                        ? 'Brief drafted. Check every tab, then create the project.'
+                        : 'Enter the Instagram handle and website, and add up to 10 photos the brand has posted. Claude studies them and fills in the brief, style, palette, and contacts for you to review. Colors and fonts you set on the Branding tab are kept.'}
                     </small>
                   </div>
                   <div className="quick-start-fields">
@@ -186,35 +219,35 @@ export default function ProjectForm({
                       type="button"
                       variant="secondary"
                       busy={drafting}
-                      disabled={!quick.handle.trim() && !quick.website.trim() && !shots.length}
+                      disabled={!quick.handle.trim() && !quick.website.trim() && !photos.length}
                       onClick={() => void draft()}
                     >
-                      {drafting ? 'Reading the website…' : 'Fill brief with AI'}
+                      {drafting ? 'Studying the brand…' : 'Fill brief with AI'}
                     </Button>
                   </div>
                   <div className="quick-start-shots">
-                    {shots.map((src, i) => (
+                    {photos.map((src, i) => (
                       <button
                         type="button"
                         key={i}
-                        aria-label={`Remove screenshot ${i + 1}`}
-                        onClick={() => setShots((all) => all.filter((_, j) => j !== i))}
+                        aria-label={`Remove photo ${i + 1}`}
+                        onClick={() => setPhotos((all) => all.filter((_, j) => j !== i))}
                       >
                         <img src={src} alt="" />
                       </button>
                     ))}
-                    {shots.length < 10 && (
+                    {photos.length < 10 && (
                       <label className="btn ghost small">
                         <Upload size={14} />
-                        {shots.length ? 'Add more' : 'Add Instagram screenshots'}
+                        {photos.length ? 'Add more' : 'Add post photos'}
                         <input
                           type="file"
                           accept="image/*"
                           multiple
                           hidden
                           onChange={(e) => {
-                            void addShots(e.target.files).catch(() =>
-                              setQuickError('A screenshot could not be read.'),
+                            void addPhotos(e.target.files).catch(() =>
+                              setQuickError('A photo could not be read.'),
                             );
                             e.target.value = '';
                           }}
@@ -337,29 +370,115 @@ export default function ProjectForm({
                         aria-label={`Brand color ${i + 1}`}
                         value={color}
                         onChange={(e) =>
-                          update(
+                          setStyle(
                             'colors',
                             form.colors.map((v, j) => (j === i ? e.target.value : v)),
                           )
                         }
                       />
-                      <code>{color}</code>
+                      <HexInput
+                        label={`Brand color ${i + 1} hex code`}
+                        value={color}
+                        onChange={(value) =>
+                          setStyle(
+                            'colors',
+                            form.colors.map((v, j) => (j === i ? value : v)),
+                          )
+                        }
+                      />
                     </div>
                   ))}
                 </div>
               </Field>
               <Field label="Default story font">
-                <select value={form.font} onChange={(e) => update('font', e.target.value)}>
-                  <option>Inter</option>
-                  <option>Lora</option>
+                <select value={form.font} onChange={(e) => setStyle('font', e.target.value)}>
+                  <option value="Inter">Inter (clean sans)</option>
+                  <option value="Lora">Lora (classic serif)</option>
+                  <option value="Montserrat">Montserrat (bold geometric)</option>
+                  {form.brandFont && (
+                    <option value="Brand">{form.brandFont.name} (brand font)</option>
+                  )}
                 </select>
               </Field>
-              <Field label="Visual direction">
-                {input(
-                  'visualDirection',
-                  'Describe the mood, lighting, and design direction.',
-                  true,
-                )}
+              <Field
+                label="Brand font"
+                hint="Optional. Upload the brand's own .ttf or .otf file: a regular weight, and a bold one for headlines if you have it."
+              >
+                <div className="brand-font">
+                  {form.brandFont ? (
+                    <>
+                      <input
+                        aria-label="Brand font name"
+                        value={form.brandFont.name}
+                        onChange={(e) =>
+                          update('brandFont', { ...form.brandFont!, name: e.target.value })
+                        }
+                      />
+                      <small>
+                        Regular: {form.brandFont.regular.family}
+                        {form.brandFont.bold
+                          ? ` · Bold: ${form.brandFont.bold.family}`
+                          : ' · No bold file, headlines use the regular one'}
+                      </small>
+                    </>
+                  ) : null}
+                  <div className="brand-font-actions">
+                    <label className="btn ghost small">
+                      <Upload size={14} />
+                      {form.brandFont ? 'Replace regular' : 'Upload font'}
+                      <input
+                        type="file"
+                        accept=".ttf,.otf,font/ttf,font/otf"
+                        hidden
+                        disabled={fontUploading}
+                        onChange={(e) => {
+                          void uploadFont(e.target.files?.[0], 'regular');
+                          e.target.value = '';
+                        }}
+                      />
+                    </label>
+                    {form.brandFont && (
+                      <label className="btn ghost small">
+                        <Upload size={14} />
+                        {form.brandFont.bold ? 'Replace bold' : 'Add bold'}
+                        <input
+                          type="file"
+                          accept=".ttf,.otf,font/ttf,font/otf"
+                          hidden
+                          disabled={fontUploading}
+                          onChange={(e) => {
+                            void uploadFont(e.target.files?.[0], 'bold');
+                            e.target.value = '';
+                          }}
+                        />
+                      </label>
+                    )}
+                    {form.brandFont && (
+                      <button
+                        type="button"
+                        className="btn ghost small"
+                        onClick={() => {
+                          update('brandFont', null);
+                          if (form.font === 'Brand') update('font', 'Inter');
+                        }}
+                      >
+                        Remove
+                      </button>
+                    )}
+                    {fontUploading && <small>Uploading…</small>}
+                  </div>
+                </div>
+              </Field>
+              <Field
+                label="Visual direction"
+                hint="Guides the AI artwork: subjects, photo style, lighting, and mood."
+              >
+                <textarea
+                  value={form.visualDirection}
+                  placeholder="Describe the mood, lighting, and design direction."
+                  rows={4}
+                  onChange={(e) => setStyle('visualDirection', e.target.value)}
+                />
               </Field>
             </>
           )}
@@ -405,12 +524,47 @@ export default function ProjectForm({
           <Button type="button" variant="secondary" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="submit" busy={busy} disabled={uploading}>
+          <Button type="submit" busy={busy} disabled={uploading || fontUploading}>
             <Check size={16} />
             {project ? 'Save project' : 'Create project'}
           </Button>
         </footer>
       </form>
     </Modal>
+  );
+}
+
+// Lets the admin paste exact brand hex codes; the color swatch alone is hard to use on a phone.
+function HexInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const [draft, setDraft] = useState(value);
+  const [focused, setFocused] = useState(false);
+  return (
+    <input
+      className="hex-input"
+      aria-label={label}
+      value={focused ? draft : value}
+      maxLength={7}
+      autoCapitalize="none"
+      spellCheck={false}
+      onFocus={() => {
+        setDraft(value);
+        setFocused(true);
+      }}
+      onBlur={() => setFocused(false)}
+      onChange={(e) => {
+        const next = e.target.value.trim();
+        setDraft(next);
+        const hex = next.startsWith('#') ? next : `#${next}`;
+        if (/^#[0-9a-fA-F]{6}$/.test(hex)) onChange(hex.toLowerCase());
+      }}
+    />
   );
 }

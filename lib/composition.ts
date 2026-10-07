@@ -7,18 +7,28 @@ import { localStorage, assetPath } from './storage';
 import { createHash } from 'node:crypto';
 import { setting, setSetting } from './db';
 import { AppError } from './errors';
-export const fontFiles = ['Inter', 'Inter-Bold', 'Lora', 'Lora-Bold'].map((name) =>
-  path.join(process.cwd(), 'public/fonts', `${name}.ttf`),
-);
+export const fontFiles = [
+  'Inter',
+  'Inter-Bold',
+  'Lora',
+  'Lora-Bold',
+  'Montserrat',
+  'Montserrat-Bold',
+].map((name) => path.join(process.cwd(), 'public/fonts', `${name}.ttf`));
 const fonts = new Map<string, fontkit.Font>();
 const xml = (s: string) =>
   s.replace(
     /[<>&"']/g,
     (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' })[c]!,
   );
+// The uploaded brand font is used only when this snapshot carries it; otherwise Inter stands in.
+function fontName(layer: Layer, snapshot?: Snapshot) {
+  return layer.font === 'Brand' && !snapshot?.fontAssets?.Brand ? 'Inter' : layer.font;
+}
 function fontFor(layer: Layer, bold: boolean, snapshot?: Snapshot) {
-  const name = `${layer.font}${bold ? '-Bold' : ''}`,
-    assetId = snapshot?.fontAssets?.[name],
+  const base = fontName(layer, snapshot),
+    name = `${base}${bold ? '-Bold' : ''}`,
+    assetId = snapshot?.fontAssets?.[name] || (base === 'Brand' ? snapshot?.fontAssets?.Brand : ''),
     key = assetId || name;
   if (!fonts.has(key))
     fonts.set(
@@ -31,8 +41,15 @@ function fontFor(layer: Layer, bold: boolean, snapshot?: Snapshot) {
     );
   return fonts.get(key)!;
 }
-export function snapshotFonts() {
-  return Object.fromEntries(
+// The family name the renderer matches: the name inside the brand font file, or the built-in name.
+function familyFor(layer: Layer, bold: boolean, snapshot: Snapshot) {
+  const base = fontName(layer, snapshot);
+  if (base !== 'Brand') return base;
+  const brand = snapshot.project.brandFont!;
+  return (bold && brand.bold ? brand.bold : brand.regular).family.replace(/['"\\<>&]/g, '');
+}
+export function snapshotFonts(project?: Project) {
+  const builtIn = Object.fromEntries(
     fontFiles.map((file) => {
       const bytes = fs.readFileSync(/* turbopackIgnore: true */ file),
         key = 'font:' + createHash('sha256').update(bytes).digest('hex');
@@ -44,6 +61,13 @@ export function snapshotFonts() {
       return [path.basename(file, '.ttf'), assetId];
     }),
   );
+  const brand = project?.brandFont;
+  if (!brand) return builtIn;
+  return {
+    ...builtIn,
+    Brand: brand.regular.id,
+    ...(brand.bold ? { 'Brand-Bold': brand.bold.id } : {}),
+  };
 }
 export function wrap(layer: Layer, bold = false, snapshot?: Snapshot) {
   const font = fontFor(layer, bold, snapshot);
@@ -129,11 +153,34 @@ const uri = (assetId: string) => {
   const asset = localStorage.read(assetId);
   return `data:${asset.mime};base64,${asset.bytes.toString('base64')}`;
 };
+// Every font a story can use: the files frozen into the snapshot, plus built-ins added later.
+function fontFaces(snapshot: Snapshot) {
+  const brand = snapshot.project?.brandFont;
+  const assets = snapshot.fontAssets || {};
+  const builtIn = fontFiles
+    .filter((file) => !assets[path.basename(file, '.ttf')])
+    .map((file) => ({
+      family: path.basename(file, '.ttf').replace('-Bold', ''),
+      weight: file.includes('Bold') ? 700 : 400,
+      file,
+    }));
+  const frozen = Object.entries(assets).map(([name, assetId]) => {
+    const bold = name.endsWith('-Bold');
+    return {
+      family: name.startsWith('Brand')
+        ? (bold && brand?.bold ? brand.bold : brand!.regular).family
+        : name.replace('-Bold', ''),
+      weight: bold ? 700 : 400,
+      file: assetPath(assetId),
+    };
+  });
+  return [...frozen, ...builtIn];
+}
 export function renderSvg(snapshot: Snapshot) {
-  const css = fontFiles
+  const css = fontFaces(snapshot)
     .map(
-      (file) =>
-        `@font-face{font-family:'${file.includes('Lora') ? 'Lora' : 'Inter'}';font-weight:${file.includes('Bold') ? 700 : 400};src:url(data:font/ttf;base64,${(snapshot.fontAssets?.[path.basename(file, '.ttf')] ? localStorage.read(snapshot.fontAssets[path.basename(file, '.ttf')]).bytes : fs.readFileSync(/* turbopackIgnore: true */ file)).toString('base64')}) format('truetype');}`,
+      (face) =>
+        `@font-face{font-family:'${face.family.replace(/['"\\<>&]/g, '')}';font-weight:${face.weight};src:url(data:font/${face.file.endsWith('.otf') ? 'otf' : 'ttf'};base64,${fs.readFileSync(/* turbopackIgnore: true */ face.file).toString('base64')});}`,
     )
     .join('');
   const layers = (['headline', 'body', 'cta', 'contact'] as const)
@@ -152,7 +199,7 @@ export function renderSvg(snapshot: Snapshot) {
           : layer.align === 'right'
             ? layer.x + layer.width
             : layer.x;
-      return `<text font-family="${layer.font}" font-size="${layer.size}" font-weight="${key === 'headline' ? 700 : 400}" fill="${xml(layer.color)}" text-anchor="${layer.align === 'center' ? 'middle' : layer.align === 'right' ? 'end' : 'start'}">${lines.map((line, i) => `<tspan x="${x}" y="${layer.y + layer.size + i * layer.size * 1.25}">${xml(line)}</tspan>`).join('')}</text>`;
+      return `<text font-family="${xml(familyFor(layer, key === 'headline', snapshot))}" font-size="${layer.size}" font-weight="${key === 'headline' ? 700 : 400}" fill="${xml(layer.color)}" text-anchor="${layer.align === 'center' ? 'middle' : layer.align === 'right' ? 'end' : 'start'}">${lines.map((line, i) => `<tspan x="${x}" y="${layer.y + layer.size + i * layer.size * 1.25}">${xml(line)}</tspan>`).join('')}</text>`;
     })
     .join('');
   const logo = snapshot.layout.logo;
@@ -170,9 +217,7 @@ export function renderPng(snapshot: Snapshot) {
     new Resvg(renderSvg(snapshot), {
       font: {
         loadSystemFonts: false,
-        fontFiles: snapshot.fontAssets
-          ? Object.values(snapshot.fontAssets).map(assetPath)
-          : fontFiles,
+        fontFiles: fontFaces(snapshot).map((face) => face.file),
       },
       fitTo: { mode: 'width', value: 1080 },
     })

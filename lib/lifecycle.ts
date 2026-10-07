@@ -81,8 +81,9 @@ export function sweepUnusedAssets(at = new Date()) {
   transaction(() => {
     const referenced = new Set<string>();
     for (const project of query<{ data: string }>('SELECT data FROM projects')) {
-      const logoId = JSON.parse(project.data).logoId;
-      if (logoId) referenced.add(logoId);
+      const data = JSON.parse(project.data);
+      for (const assetId of [data.logoId, data.brandFont?.regular.id, data.brandFont?.bold?.id])
+        if (assetId) referenced.add(assetId);
     }
     for (const version of query<{ data: string }>('SELECT data FROM story_versions'))
       snapshotAssetIds(JSON.parse(version.data)).forEach((value) => referenced.add(value));
