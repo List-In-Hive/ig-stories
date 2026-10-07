@@ -2901,3 +2901,23 @@ textarea {
     grid-template-columns: 1fr;
   }
 }
+.quick-start-shots {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.quick-start-shots button {
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  background: none;
+  cursor: pointer;
+}
+.quick-start-shots img {
+  display: block;
+  width: 44px;
+  height: 78px;
+  object-fit: cover;
+}

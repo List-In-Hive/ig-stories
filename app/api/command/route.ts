@@ -21,6 +21,7 @@ import { setSetting } from '@/lib/db';
 import { deleteProject } from '@/lib/lifecycle';
 import { isTimeZone } from '@/lib/schedule';
 import { draftBrief } from '@/lib/ai';
+import { normalizeScreenshot } from '@/lib/storage';
 export const runtime = 'nodejs';
 export async function POST(request: Request) {
   try {
@@ -38,17 +39,19 @@ export async function POST(request: Request) {
           .object({
             website: z.union([z.literal(''), z.url()]).default(''),
             handle: z.string().max(60).default(''),
+            screenshots: z.array(z.string().max(2_000_000)).max(10).default([]),
           })
           .parse(body);
+        const screenshots = await Promise.all(input.screenshots.map(normalizeScreenshot));
         const handle = input.handle.trim().replace(/^@/, '').replace(/\/$/, '');
-        if (!input.website && !handle)
-          throw new AppError('Enter the website or Instagram handle first.');
+        if (!input.website && !handle && !screenshots.length)
+          throw new AppError('Enter the website or Instagram handle, or add screenshots.');
         const instagram = !handle
           ? ''
           : handle.startsWith('http')
             ? handle
             : `https://www.instagram.com/${handle}/`;
-        result = await draftBrief({ website: input.website, instagram });
+        result = await draftBrief({ website: input.website, instagram, screenshots });
         break;
       }
       case 'deleteProject':

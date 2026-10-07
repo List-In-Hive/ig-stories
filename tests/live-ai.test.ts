@@ -281,3 +281,44 @@ test('AI quick start drafts a brief from the website for review', async () => {
   });
   assert.equal(service.getProject(saved.id).instagram, 'https://www.instagram.com/fern/');
 });
+
+test('Instagram screenshots are cleaned and sent to Claude as images', async () => {
+  const storage = await import('../lib/storage');
+  await assert.rejects(storage.normalizeScreenshot('bm90IGFuIGltYWdl'), /could not be read/);
+  const tall = await sharp({
+    create: { width: 1170, height: 2532, channels: 3, background: '#fff' },
+  })
+    .png()
+    .toBuffer();
+  const shot = await storage.normalizeScreenshot(
+    `data:image/png;base64,${tall.toString('base64')}`,
+  );
+  const meta = await sharp(shot).metadata();
+  assert.deepEqual([meta.format, meta.height! <= 1280], ['jpeg', true]);
+  requests.length = 0;
+  replies = [
+    {
+      name: 'Shot Studio',
+      industry: 'Design',
+      description: 'A studio.',
+      services: '',
+      audience: '',
+      facts: '',
+      rules: '',
+      prohibited: '',
+      visualDirection: 'Lilac minimal',
+      colors: ['#ebe8f3', '#9d91b9', '#ded9e9'],
+      font: 'Inter',
+      email: '',
+      phone: '',
+      address: '',
+      location: '',
+    },
+  ];
+  await ai.draftBrief({ website: '', instagram: '', screenshots: [shot, shot] });
+  const content = requests[0].prompt as unknown as { type: string }[];
+  assert.deepEqual(
+    content.map((b) => b.type),
+    ['image', 'image', 'text'],
+  );
+});

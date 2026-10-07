@@ -109,7 +109,7 @@ function engagementRules(project: Project) {
 // web search actually returned, so cited sources can be checked against real results.
 async function parse<T extends z.ZodType>(
   schema: T,
-  prompt: string,
+  prompt: string | Anthropic.Beta.BetaContentBlockParam[],
   tools: ServerTool[] = [],
   system = SYSTEM,
 ) {
@@ -349,14 +349,21 @@ const briefSchema = z.object({
 });
 const hex = /^#[0-9a-fA-F]{6}$/;
 // Drafts a project brief from the brand's website (and public mentions) for the admin to review.
-export async function draftBrief(input: { website: string; instagram: string }) {
+export async function draftBrief(input: {
+  website: string;
+  instagram: string;
+  screenshots?: Buffer[];
+}) {
   assertLiveConfigured();
-  const { output } = await parse(
-    briefSchema,
-    `Prepare a brief for a new brand account.
+  const screenshots = input.screenshots ?? [];
+  const text = `Prepare a brief for a new brand account.
 Website: ${input.website || 'none given'}
 Instagram profile: ${input.instagram || 'none given'}
-
+${
+  screenshots.length
+    ? `\nAttached are ${screenshots.length} screenshots of the brand's Instagram profile and posts. Study them closely: the visual style, colors, typography feel, recurring topics, tone of the captions, and any facts they state. Base visualDirection, colors, rules, and topics on what they show.\n`
+    : ''
+}
 Read the website with web_fetch (home page plus at most a few key pages such as about, menu, services, or contact). Use web_search only to confirm the business name, location, or what it offers if the website is missing or thin; Instagram pages usually cannot be read, so do not rely on them.
 
 Fill every field:
@@ -369,8 +376,23 @@ Fill every field:
 - visualDirection: one sentence describing imagery that fits the brand.
 - colors: exactly three six-digit hex colors from the brand (background, accent, soft secondary); guess tastefully if the site gives no clear palette.
 - font: "Lora" for classic, warm, or premium brands, otherwise "Inter".
-- email, phone, address, location: public contact details if listed, else empty strings.`,
-    [webFetch, webSearch],
+- email, phone, address, location: public contact details if listed, else empty strings.`;
+  const { output } = await parse(
+    briefSchema,
+    screenshots.length
+      ? [
+          ...screenshots.map((bytes) => ({
+            type: 'image' as const,
+            source: {
+              type: 'base64' as const,
+              media_type: 'image/jpeg' as const,
+              data: bytes.toString('base64'),
+            },
+          })),
+          { type: 'text' as const, text },
+        ]
+      : text,
+    input.website ? [webFetch, webSearch] : [webSearch],
     'You set up brand briefs for a creative agency that writes Instagram Stories. Be accurate: copy facts only from sources you actually read, and leave a field empty rather than invent it.',
   );
   const colors = output.colors.filter((c) => hex.test(c)).slice(0, 3);

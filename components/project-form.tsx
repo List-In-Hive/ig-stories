@@ -45,6 +45,23 @@ export default function ProjectForm({
   const [drafting, setDrafting] = useState(false);
   const [drafted, setDrafted] = useState(false);
   const [quickError, setQuickError] = useState('');
+  const [shots, setShots] = useState<string[]>([]);
+  // Phone screenshots are shrunk in the browser before upload to keep the request light.
+  async function addShots(files: FileList | null) {
+    const picked = Array.from(files || []).slice(0, 10 - shots.length);
+    const encoded = await Promise.all(
+      picked.map(async (file) => {
+        const bitmap = await createImageBitmap(file);
+        const scale = Math.min(1, 1280 / Math.max(bitmap.width, bitmap.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(bitmap.width * scale);
+        canvas.height = Math.round(bitmap.height * scale);
+        canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+        return canvas.toDataURL('image/jpeg', 0.8);
+      }),
+    );
+    setShots((current) => [...current, ...encoded].slice(0, 10));
+  }
   // Claude reads the website and fills the brief; nothing is saved until the admin reviews it.
   async function draft() {
     setDrafting(true);
@@ -58,6 +75,7 @@ export default function ProjectForm({
         action: 'draftBrief',
         website,
         handle: quick.handle,
+        screenshots: shots,
       });
       setForm((f) => ({ ...f, ...brief, logoId: f.logoId, status: f.status }));
       setDrafted(true);
@@ -147,7 +165,7 @@ export default function ProjectForm({
                     <small>
                       {drafted
                         ? 'Brief drafted from the website. Check every tab, then create the project.'
-                        : 'Enter the Instagram handle and website. Claude reads the site and fills in the brief, palette, and contacts for you to review.'}
+                        : 'Enter the Instagram handle and website, and add up to 10 screenshots of the profile and posts. Claude studies them and fills in the brief, palette, and contacts for you to review.'}
                     </small>
                   </div>
                   <div className="quick-start-fields">
@@ -168,11 +186,41 @@ export default function ProjectForm({
                       type="button"
                       variant="secondary"
                       busy={drafting}
-                      disabled={!quick.handle.trim() && !quick.website.trim()}
+                      disabled={!quick.handle.trim() && !quick.website.trim() && !shots.length}
                       onClick={() => void draft()}
                     >
                       {drafting ? 'Reading the website…' : 'Fill brief with AI'}
                     </Button>
+                  </div>
+                  <div className="quick-start-shots">
+                    {shots.map((src, i) => (
+                      <button
+                        type="button"
+                        key={i}
+                        aria-label={`Remove screenshot ${i + 1}`}
+                        onClick={() => setShots((all) => all.filter((_, j) => j !== i))}
+                      >
+                        <img src={src} alt="" />
+                      </button>
+                    ))}
+                    {shots.length < 10 && (
+                      <label className="btn ghost small">
+                        <Upload size={14} />
+                        {shots.length ? 'Add more' : 'Add Instagram screenshots'}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          hidden
+                          onChange={(e) => {
+                            void addShots(e.target.files).catch(() =>
+                              setQuickError('A screenshot could not be read.'),
+                            );
+                            e.target.value = '';
+                          }}
+                        />
+                      </label>
+                    )}
                   </div>
                   {quickError && (
                     <p className="form-error" role="alert">

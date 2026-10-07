@@ -62,3 +62,19 @@ export async function uploadLogo(bytes: Buffer, mime: string) {
     throw new AppError('This image could not be read. Try another PNG, JPEG, or WebP.');
   }
 }
+
+// Screenshots arrive as base64 data from the browser; re-encoding them through sharp
+// rejects anything that is not a real image and keeps each one small for the AI request.
+export async function normalizeScreenshot(data: string) {
+  try {
+    return await sharp(Buffer.from(data.replace(/^data:[^,]+,/, ''), 'base64'), {
+      limitInputPixels: 40_000_000,
+    })
+      .rotate()
+      .resize(1280, 1280, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 80 })
+      .toBuffer();
+  } catch {
+    throw new AppError('A screenshot could not be read. Use PNG or JPEG images.');
+  }
+}
