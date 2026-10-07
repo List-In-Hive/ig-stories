@@ -1,0 +1,1 @@
+CREATE TABLE IF NOT EXISTS login_attempts (email TEXT PRIMARY KEY, attempts INTEGER NOT NULL, lastAt TEXT NOT NULL);
