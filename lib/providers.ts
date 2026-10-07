@@ -8,6 +8,7 @@ import type {
   JobRunner,
 } from './types';
 import { AppError } from './errors';
+import { describePalette, palette } from './palette';
 import { setting } from './db';
 import { assertEngagementAllowed } from './engagement';
 export function assertDemo() {
@@ -112,7 +113,7 @@ export const demoScript: ScriptProvider = {
               : detail
                 ? `Discover ${detail.toLowerCase()}`
                 : 'Discover more',
-      visual: `${project.visualDirection}. Abstract composition in ${project.colors.join(', ')}. No lettering, logo, or contact details. ${project.rules}\n${project.allowEngagement ? 'Question, poll, and DM prompts are allowed.' : 'Informational stories only. No questions, answer choices, voting, replies, or DM prompts.'}`,
+      visual: `${project.visualDirection}. Abstract composition in ${describePalette(project.colors)}. No lettering, logo, or contact details. ${project.rules}\n${project.allowEngagement ? 'Question, poll, and DM prompts are allowed.' : 'Informational stories only. No questions, answer choices, voting, replies, or DM prompts.'}`,
       sources: [],
       ...(kind !== 'standard' ? { kind } : {}),
     };
@@ -123,7 +124,7 @@ export const demoScript: ScriptProvider = {
 export const demoImage: ImageProvider = {
   async generate(project, script, seed) {
     assertDemo();
-    const [a, b, c] = project.colors;
+    const { background: a, accent: b, secondary: c } = palette(project.colors);
     const shift = seed % 200;
     const circle = (x: number, y: number, r: number, color: string, opacity: number) =>
       `<circle cx="${x}" cy="${y}" r="${r}" fill="${xml(color)}" opacity="${opacity}"/>`;

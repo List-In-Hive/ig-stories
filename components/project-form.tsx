@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { Upload, Check, Sparkles } from 'lucide-react';
 import type { BrandFont, FontName, Project } from '@/lib/types';
+import { PALETTE_ROLES, contrast, normalizePalette } from '@/lib/palette';
 import { api, Button, Field, Modal } from './ui';
 // Photos only guide the style, so a 1024 px copy (longest side) is plenty and keeps 20 uploads light.
 const MAX_PHOTOS = 20;
@@ -14,7 +15,7 @@ const defaults = {
   audience: '',
   instagram: '',
   visualDirection: '',
-  colors: ['#ece6f4', '#9d88be', '#f5f1fa'],
+  colors: ['#ece6f4', '#172420', '#9d88be', '#f5f1fa'],
   font: 'Inter' as FontName,
   brandFont: null as BrandFont | null,
   rules: 'Use clear, thoughtful English. Use only approved project facts.',
@@ -39,8 +40,13 @@ export default function ProjectForm({
   onClose: () => void;
   onSave: (project: typeof defaults, projectId?: string) => Promise<void>;
 }) {
-  const [form, setForm] = useState({ ...defaults, ...project });
-  const [initial] = useState(() => JSON.stringify({ ...defaults, ...project }));
+  const start = {
+    ...defaults,
+    ...project,
+    colors: normalizePalette(project?.colors ?? defaults.colors),
+  };
+  const [form, setForm] = useState(start);
+  const [initial] = useState(() => JSON.stringify(start));
   const [tab, setTab] = useState('Brief');
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -395,13 +401,17 @@ export default function ProjectForm({
                   </span>
                 </div>
               </Field>
-              <Field label="Brand palette">
+              <Field
+                label="Brand palette"
+                hint="Background and accent guide the artwork; text and accent color the story copy and call to action. Extra is optional."
+              >
                 <div className="color-fields">
                   {form.colors.map((color, i) => (
                     <div key={i}>
+                      <span className="color-role">{PALETTE_ROLES[i]}</span>
                       <input
                         type="color"
-                        aria-label={`Brand color ${i + 1}`}
+                        aria-label={`${PALETTE_ROLES[i]} color`}
                         value={color}
                         onChange={(e) =>
                           setStyle(
@@ -411,7 +421,7 @@ export default function ProjectForm({
                         }
                       />
                       <HexInput
-                        label={`Brand color ${i + 1} hex code`}
+                        label={`${PALETTE_ROLES[i]} color hex code`}
                         value={color}
                         onChange={(value) =>
                           setStyle(
@@ -420,9 +430,33 @@ export default function ProjectForm({
                           )
                         }
                       />
+                      {i === 4 && (
+                        <button
+                          type="button"
+                          className="text-button"
+                          onClick={() => setStyle('colors', form.colors.slice(0, 4))}
+                        >
+                          Remove
+                        </button>
+                      )}
                     </div>
                   ))}
+                  {form.colors.length < 5 && (
+                    <button
+                      type="button"
+                      className="btn ghost small"
+                      onClick={() => setStyle('colors', [...form.colors, form.colors[3]])}
+                    >
+                      + Extra color
+                    </button>
+                  )}
                 </div>
+                {contrast(form.colors[1], form.colors[0]) < 4.5 && (
+                  <small className="soft-note">
+                    Text on this background is hard to read, so stories will use a darker or lighter
+                    text color automatically.
+                  </small>
+                )}
               </Field>
               <Field label="Default story font">
                 <select value={form.font} onChange={(e) => setStyle('font', e.target.value)}>

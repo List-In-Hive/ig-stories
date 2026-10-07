@@ -1538,6 +1538,12 @@ textarea {
   align-items: center;
   gap: 8px;
 }
+.color-role {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  min-width: 84px;
+}
 .color-fields input {
   width: 42px;
   height: 36px;
@@ -2646,8 +2652,7 @@ textarea {
     gap: 9px;
   }
   .color-fields > div {
-    flex-direction: column;
-    gap: 4px;
+    width: 100%;
   }
   .color-fields input.hex-input {
     width: 84px;

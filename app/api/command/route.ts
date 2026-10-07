@@ -44,7 +44,8 @@ export async function POST(request: Request) {
               .object({
                 colors: z
                   .array(z.string().regex(/^#[0-9a-fA-F]{6}$/))
-                  .length(3)
+                  .min(4)
+                  .max(5)
                   .optional(),
                 font: z.enum(['Inter', 'Lora', 'Montserrat', 'Brand']).optional(),
                 visualDirection: z.string().max(2000).optional(),

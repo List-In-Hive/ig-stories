@@ -27,6 +27,7 @@ import {
   OPENAI_IMAGE_MODEL,
 } from './ai';
 import { localStorage, readFamily } from './storage';
+import { DEFAULT_TEXT, normalizePalette } from './palette';
 import { defaultLayout, validateComposition, snapshotFonts } from './composition';
 import type {
   AppState,
@@ -63,7 +64,7 @@ export const projectSchema = z.object({
     )
     .default(''),
   visualDirection: text,
-  colors: z.array(color).length(3),
+  colors: z.array(color).min(3).max(5).transform(normalizePalette),
   font: z.enum(FONTS).default('Inter'),
   brandFont: z
     .object({
@@ -139,6 +140,7 @@ export function listProjects() {
     webResearch: true,
     generateAt: DEFAULT_GENERATE_AT,
     ...JSON.parse(r.data),
+    colors: normalizePalette(JSON.parse(r.data).colors),
     id: r.id,
     name: r.name,
     industry: r.industry,
@@ -797,8 +799,8 @@ export async function requestChanges(
     }
   } else if (target === 'visual' && /warm|cool/.test(normalized)) {
     snapshot.project.colors = /warm/.test(normalized)
-      ? ['#f3dbc5', '#c28660', '#f9eee4']
-      : ['#d9e9ef', '#6599ae', '#edf5f6'];
+      ? ['#f3dbc5', DEFAULT_TEXT, '#c28660', '#f9eee4']
+      : ['#d9e9ef', DEFAULT_TEXT, '#6599ae', '#edf5f6'];
     const seed = seedFrom(id());
     const image = await demoImage.generate(snapshot.project, snapshot.script, seed);
     snapshot = {

@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
 import OpenAI from 'openai';
 import { zodTextFormat } from 'openai/helpers/zod';
+import { PALETTE_ROLES, describePalette } from './palette';
 import sharp from 'sharp';
 import { z } from 'zod';
 import { AppError } from './errors';
@@ -91,7 +92,7 @@ function brief(project: Project) {
       contentRules: project.rules,
       prohibitedTopics: project.prohibited,
       visualDirection: project.visualDirection,
-      palette: project.colors,
+      palette: describePalette(project.colors),
       website: project.website,
       location: project.location || project.address,
     },
@@ -315,7 +316,7 @@ export const openAIImages: ImageProvider = {
     assertLiveConfigured();
     const result = await images().images.generate({
       model: OPENAI_IMAGE_MODEL,
-      prompt: `${script.visual}\n\nBrand palette: ${project.colors.join(', ')}. Vertical 9:16 composition. Absolutely no text, letters, numbers, watermarks, or logos.`,
+      prompt: `${script.visual}\n\nBrand palette: ${describePalette(project.colors)}. Vertical 9:16 composition. Absolutely no text, letters, numbers, watermarks, or logos.`,
       size: '1024x1536',
       quality: OPENAI_IMAGE_QUALITY,
       n: 1,
@@ -332,6 +333,14 @@ export const openAIImages: ImageProvider = {
 };
 
 // Claude reads the business (website, search); ChatGPT studies the post photos. Both run at once.
+const paletteSchema = z.object({
+  background: z.string(),
+  text: z.string(),
+  accent: z.string(),
+  secondary: z.string(),
+});
+const paletteGuide =
+  'palette: six-digit hex colors by role. background: the main backdrop tone; text: a headline color that reads clearly on the background; accent: the call-to-action and highlight color; secondary: a soft supporting tone';
 const businessSchema = z.object({
   name: z.string(),
   industry: z.string(),
@@ -342,7 +351,7 @@ const businessSchema = z.object({
   rules: z.string(),
   prohibited: z.string(),
   visualDirection: z.string(),
-  colors: z.array(z.string()),
+  palette: paletteSchema,
   font: z.enum(['Inter', 'Lora', 'Montserrat']),
   email: z.string(),
   phone: z.string(),
@@ -351,7 +360,7 @@ const businessSchema = z.object({
 });
 const styleSchema = z.object({
   visualDirection: z.string(),
-  colors: z.array(z.string()),
+  palette: paletteSchema,
   font: z.enum(['Inter', 'Lora', 'Montserrat']),
   themes: z.string(),
   visibleFacts: z.string(),
@@ -376,7 +385,7 @@ async function studyPhotos(photos: Buffer[], keep: Keep) {
             type: 'input_text',
             text: `These are ${photos.length} images the brand has posted on Instagram.
 - visualDirection: 2-3 sentences an image generator can follow to match the brand's imagery: subjects, photography or illustration style, lighting, composition, and color mood.
-- colors: exactly three six-digit hex colors that define the brand look (background, accent, soft secondary).
+- ${paletteGuide}, taken from the images.
 - font: ${fontGuide}, judged from any lettering and the overall feel.
 - themes: recurring subjects and topics, comma-separated.
 - visibleFacts: facts written in the images (offers, prices, opening hours, slogans), one per line; empty if none.
@@ -403,7 +412,8 @@ async function studyPhotos(photos: Buffer[], keep: Keep) {
 
 async function readBusiness(website: string, instagram: string, keep: Keep) {
   const kept = [
-    keep.colors && `brand colors ${keep.colors.join(', ')}`,
+    keep.colors &&
+      `brand palette ${keep.colors.map((c, i) => `${PALETTE_ROLES[i].toLowerCase()} ${c}`).join(', ')}`,
     keep.font && `story font ${keep.font === 'Brand' ? "the brand's own typeface" : keep.font}`,
     keep.visualDirection && `visual direction "${keep.visualDirection}"`,
   ].filter(Boolean);
@@ -421,7 +431,7 @@ Fill every field:
 - rules: tone of voice and language for stories, based on how the brand writes.
 - prohibited: sensible topics to avoid for this kind of business, comma-separated.
 - visualDirection: 2-3 sentences an image generator can follow to match the brand's imagery.
-- colors: exactly three six-digit hex colors from the brand (background, accent, soft secondary); guess tastefully if the site gives no clear palette.
+- ${paletteGuide}, taken from the brand; guess tastefully if the site gives no clear palette.
 - font: ${fontGuide}.
 - email, phone, address, location: public contact details if listed, else empty strings.`;
   const { output } = await parse(
@@ -460,9 +470,10 @@ export async function draftBrief(input: {
     research ? readBusiness(input.website, input.instagram, keep) : null,
     photos.length ? studyPhotos(photos, keep) : null,
   ]);
-  const colors = (style?.colors.length ? style.colors : (business?.colors ?? []))
-    .filter((c) => hex.test(c))
-    .slice(0, 3);
+  const found = style?.palette ?? business?.palette;
+  const colors = found
+    ? [found.background, found.text, found.accent, found.secondary].filter((c) => hex.test(c))
+    : [];
   return {
     name: business?.name || style?.brandName || '',
     industry: business?.industry || style?.industry || '',
@@ -473,7 +484,7 @@ export async function draftBrief(input: {
     rules: business?.rules || '',
     prohibited: business?.prohibited || '',
     visualDirection: style?.visualDirection || business?.visualDirection || '',
-    colors: colors.length === 3 ? colors : ['#f3eee8', '#2525e0', '#e8e6f7'],
+    colors: colors.length === 4 ? colors : ['#f3eee8', '#172420', '#2525e0', '#e8e6f7'],
     font: style?.font || business?.font || 'Inter',
     email: business?.email || '',
     phone: business?.phone || '',

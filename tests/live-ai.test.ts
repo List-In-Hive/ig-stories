@@ -268,7 +268,7 @@ test('AI quick start drafts a brief from the website for review', async () => {
       rules: 'Warm, plain English.',
       prohibited: 'Medical claims',
       visualDirection: 'Soft greens',
-      colors: ['#e6ebdf', '#638166', 'green'],
+      palette: { background: '#e6ebdf', text: '#1d2a1f', accent: '#638166', secondary: 'green' },
       font: 'Lora',
       email: '',
       phone: '',
@@ -281,7 +281,7 @@ test('AI quick start drafts a brief from the website for review', async () => {
     instagram: 'https://www.instagram.com/fern/',
   });
   assert.match(requests[0].prompt, /https:\/\/fern\.example/);
-  assert.equal(brief.colors.length, 3, 'invalid colors fall back to a full palette');
+  assert.equal(brief.colors.length, 4, 'invalid colors fall back to a full palette');
   const saved = service.saveProject({
     ...brief,
     status: 'paused',
@@ -314,7 +314,7 @@ test('ChatGPT studies post photos while Claude researches, and hand-set styles a
       rules: 'Confident and brief.',
       prohibited: 'Politics',
       visualDirection: 'Website guess',
-      colors: ['#000000', '#111111', '#222222'],
+      palette: { background: '#000000', text: '#ffffff', accent: '#111111', secondary: '#222222' },
       font: 'Inter',
       email: 'hi@shot.example',
       phone: '',
@@ -325,7 +325,7 @@ test('ChatGPT studies post photos while Claude researches, and hand-set styles a
   styles = [
     {
       visualDirection: 'Lilac minimal flat lays in soft daylight',
-      colors: ['#ebe8f3', '#9d91b9', '#ded9e9'],
+      palette: { background: '#ebe8f3', text: '#2b2540', accent: '#9d91b9', secondary: '#ded9e9' },
       font: 'Montserrat',
       themes: 'Desks, sketches',
       visibleFacts: 'Free consultation every Friday\nFounded in 2019',
@@ -346,7 +346,7 @@ test('ChatGPT studies post photos while Claude researches, and hand-set styles a
   assert.equal(vision[0].content.filter((b) => b.type === 'input_image').length, 20);
   assert.equal(brief.name, 'Shot Studio');
   assert.equal(brief.visualDirection, 'Lilac minimal flat lays in soft daylight');
-  assert.deepEqual(brief.colors, ['#ebe8f3', '#9d91b9', '#ded9e9']);
+  assert.deepEqual(brief.colors, ['#ebe8f3', '#2b2540', '#9d91b9', '#ded9e9']);
   assert.equal(brief.font, 'Montserrat');
   assert.equal(brief.facts, 'Founded in 2019\nFree consultation every Friday');
   assert.equal(brief.email, 'hi@shot.example');
@@ -355,9 +355,8 @@ test('ChatGPT studies post photos while Claude researches, and hand-set styles a
   requests.length = 0;
   styles = [
     {
-      ...(styles[0] ?? {}),
       visualDirection: 'From photos',
-      colors: ['#ebe8f3', '#9d91b9', '#ded9e9'],
+      palette: { background: '#ebe8f3', text: '#2b2540', accent: '#9d91b9', secondary: '#ded9e9' },
       font: 'Lora',
       themes: '',
       visibleFacts: '',
@@ -369,13 +368,35 @@ test('ChatGPT studies post photos while Claude researches, and hand-set styles a
     website: '',
     instagram: '',
     photos: [shot],
-    keep: { colors: ['#112233', '#445566', '#778899'], font: 'Brand' },
+    keep: { colors: ['#f4f1ea', '#112233', '#445566', '#778899'], font: 'Brand' },
   });
   assert.equal(requests.length, 0);
-  assert.deepEqual(kept.colors, ['#112233', '#445566', '#778899']);
+  assert.deepEqual(kept.colors, ['#f4f1ea', '#112233', '#445566', '#778899']);
   assert.equal(kept.font, 'Brand');
   assert.equal(kept.visualDirection, 'From photos');
   assert.equal(kept.name, 'Shot');
+});
+
+test('palette roles: old three-color brands gain a text color, and story text stays readable', async () => {
+  const { normalizePalette, readable, contrast } = await import('../lib/palette');
+  const composition = await import('../lib/composition');
+  assert.deepEqual(normalizePalette(['#f5e8d7', '#a67550', '#ecdbc2']), [
+    '#f5e8d7',
+    '#172420',
+    '#a67550',
+    '#ecdbc2',
+  ]);
+  assert.equal(readable('#3b2a8f', '#f7f4ee'), '#3b2a8f');
+  assert.ok(contrast(readable('#f0f0f0', '#ffffff'), '#ffffff') >= 4.5);
+  const base = service.getProject(project.id);
+  assert.equal(base.colors.length, 4);
+  const branded = { ...base, colors: ['#f7f4ee', '#3b2a8f', '#c2410c', '#e9e2f5', '#0f766e'] };
+  const layout = composition.defaultLayout(branded, story('Palette') as never);
+  assert.equal(layout.headline.color, '#3b2a8f');
+  assert.equal(layout.cta.color, '#c2410c');
+  const saved = service.saveProject(branded, project.id);
+  assert.equal(saved.colors.length, 5);
+  service.saveProject({ ...saved, colors: base.colors }, project.id);
 });
 
 test('an uploaded brand font is validated, frozen into stories, and used for rendering', async () => {

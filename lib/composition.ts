@@ -7,6 +7,7 @@ import { localStorage, assetPath } from './storage';
 import { createHash } from 'node:crypto';
 import { setting, setSetting } from './db';
 import { AppError } from './errors';
+import { palette, readable } from './palette';
 export const fontFiles = [
   'Inter',
   'Inter-Bold',
@@ -91,13 +92,15 @@ export function wrap(layer: Layer, bold = false, snapshot?: Snapshot) {
   return lines;
 }
 export function defaultLayout(project: Project, script: Script): Layout {
-  const layer = (text: string, y: number, size: number): Layer => ({
+  const colors = palette(project.colors);
+  const ink = readable(colors.text, colors.background);
+  const layer = (text: string, y: number, size: number, color = ink): Layer => ({
     text,
     x: 90,
     y,
     width: 900,
     size,
-    color: '#172420',
+    color,
     font: project.font,
     align: 'left',
     visible: !!text,
@@ -105,7 +108,12 @@ export function defaultLayout(project: Project, script: Script): Layout {
   return {
     headline: layer(script.headline, 340, 88),
     body: layer(script.body, 670, 37),
-    cta: layer(script.cta, 1650, 29),
+    cta: layer(
+      script.cta,
+      1650,
+      29,
+      readable(colors.accent, colors.background, 3) === colors.accent ? colors.accent : ink,
+    ),
     contact: layer(
       [project.website, project.email, project.phone, project.address, project.location]
         .filter(Boolean)
