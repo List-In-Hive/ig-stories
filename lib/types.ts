@@ -17,6 +17,7 @@ export type Project = {
   facts: string;
   allowEngagement: boolean;
   generateAt: string;
+  webResearch: boolean;
   logoId: string | null;
   website: string;
   email: string;
@@ -52,6 +53,7 @@ export type Script = {
   cta: string;
   visual: string;
   sources: string[];
+  review?: { reviewer: string; passed: boolean; notes: string[]; revised: boolean };
 };
 export type Snapshot = {
   script: Script;

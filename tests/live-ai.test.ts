@@ -24,9 +24,13 @@ const story = (topic: string, kind = 'standard') => ({
   body: 'Seasonal coffee and freshly baked pastries are part of our menu.',
   cta: 'Visit us this week',
   visual: `A calm morning scene about ${topic}`,
+  sources: [] as string[],
 });
 const requests: { prompt: string }[] = [];
 let replies: unknown[] = [];
+let searchResults: string[] = [];
+let reviews: unknown[] = [];
+const allPassed = { reviews: [0, 1, 2, 3].map((index) => ({ index, passed: true, issues: [] })) };
 const png = await sharp({
   create: { width: 1024, height: 1536, channels: 3, background: '#c28660' },
 })
@@ -39,12 +43,22 @@ ai.setLiveClients({
       messages: {
         parse: async (params: { messages: { content: string }[] }) => {
           requests.push({ prompt: params.messages[0].content });
-          return { stop_reason: 'end_turn', parsed_output: replies.shift() };
+          const content = searchResults.length
+            ? [
+                {
+                  type: 'web_search_tool_result',
+                  content: searchResults.map((url) => ({ url, title: url })),
+                },
+              ]
+            : [];
+          searchResults = [];
+          return { stop_reason: 'end_turn', content, parsed_output: replies.shift() };
         },
       },
     },
   } as never,
   openai: {
+    responses: { parse: async () => ({ output_parsed: reviews.shift() ?? allPassed }) },
     images: {
       generate: async () => {
         imageCalls++;
@@ -161,4 +175,62 @@ test('each project generates at its own time in the workspace time zone', async 
     '2031-06-10T07:00:00.000Z',
   );
   store.setSetting('timeZone', 'America/Los_Angeles');
+});
+
+test('Claude researches, ChatGPT reviews, and flagged stories are revised once', async () => {
+  store.setSetting('providerMode', 'live');
+  requests.length = 0;
+  searchResults = ['https://example.com/autumn-menu'];
+  const researched = {
+    ...story('Autumn hook'),
+    sources: ['https://example.com/autumn-menu', 'https://invented.example/not-searched'],
+  };
+  replies = [
+    { stories: [researched, story('Tip'), story('Product'), story('Moment')] },
+    { headline: 'Pastry, slowly', body: 'Freshly baked pastries.', cta: 'Visit us' },
+  ];
+  reviews = [
+    {
+      reviews: [
+        { index: 0, passed: true, issues: [] },
+        { index: 1, passed: false, issues: ['The headline is generic.'] },
+        { index: 2, passed: true, issues: [] },
+        { index: 3, passed: true, issues: [] },
+      ],
+    },
+  ];
+  const runId = service.enqueueRun(project.id, 'manual', new Date(), 'live-run-review');
+  for (let i = 0; i < 4; i++) await service.processJob(service.claimJob()!);
+  assert.match(requests[0].prompt, /Today is /);
+  assert.match(requests[0].prompt, /web search/);
+  assert.match(requests[1].prompt, /The headline is generic/);
+  const scripts = service
+    .listStories()
+    .filter((s) => s.runId === runId)
+    .map((s) => s.version.data.script)
+    .sort((a, b) => a.topic.localeCompare(b.topic));
+  const hook = scripts.find((s) => s.topic === 'Autumn hook')!;
+  assert.deepEqual(hook.sources, ['https://example.com/autumn-menu']);
+  const tip = scripts.find((s) => s.topic === 'Tip')!;
+  assert.equal(tip.headline, 'Pastry, slowly');
+  assert.deepEqual(tip.review, {
+    reviewer: ai.OPENAI_REVIEW_MODEL,
+    passed: false,
+    notes: ['The headline is generic.'],
+    revised: true,
+  });
+  store.setSetting('providerMode', 'demo');
+});
+
+test('approvals and feedback are remembered for the next plan', async () => {
+  const draft = service
+    .listStories()
+    .find((s) => s.projectId === project.id && !s.approvedVersionId)!;
+  service.approve([{ storyId: draft.id, versionId: draft.latestVersionId }], admin.id);
+  const approved = JSON.parse(store.setting(`taste:approved:${project.id}`, '[]'));
+  assert.equal(
+    approved[0],
+    `${draft.version.data.script.topic}: ${draft.version.data.script.headline}`,
+  );
+  assert.match(store.setting(`taste:feedback:${project.id}`, '[]'), /Make it shorter and warmer/);
 });

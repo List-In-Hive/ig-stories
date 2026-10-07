@@ -19,6 +19,7 @@ import {
 } from './schedule';
 import { demoImage, demoScript, demoResearch } from './providers';
 import {
+  type PlanContext,
   claudeScripts,
   openAIImages,
   missingLiveKeys,
@@ -63,6 +64,7 @@ export const projectSchema = z.object({
   prohibited: text,
   facts: text,
   allowEngagement: z.boolean().default(false),
+  webResearch: z.boolean().default(true),
   generateAt: z
     .string()
     .regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Use a 24-hour time such as 08:00.')
@@ -121,6 +123,7 @@ type ProjectRow = {
 export function listProjects() {
   return query<ProjectRow>('SELECT * FROM projects ORDER BY createdAt').map((r) => ({
     allowEngagement: false,
+    webResearch: true,
     generateAt: DEFAULT_GENERATE_AT,
     ...JSON.parse(r.data),
     id: r.id,
@@ -280,8 +283,37 @@ export function appendVersion(
 export const liveMode = () =>
   setting('providerMode', process.env.PROVIDER_MODE || 'demo') !== 'demo';
 const imageProvider = () => (liveMode() ? openAIImages : demoImage);
+// Reviewer taste survives the three-day history window: the latest approvals and written
+// feedback per project are kept in settings and shown to Claude when planning.
+const TASTE_LIMIT = 12;
+function remember(projectId: string, kind: 'approved' | 'feedback', entry: string) {
+  const key = `taste:${kind}:${projectId}`;
+  const items = JSON.parse(setting(key, '[]')) as string[];
+  setSetting(
+    key,
+    JSON.stringify([entry, ...items.filter((i) => i !== entry)].slice(0, TASTE_LIMIT)),
+  );
+}
+function planContext(project: Project, at = new Date()): PlanContext {
+  const today = businessDate(at);
+  return {
+    today: new Intl.DateTimeFormat('en-US', {
+      timeZone: timeZone(),
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    }).format(at),
+    approved: JSON.parse(setting(`taste:approved:${project.id}`, '[]')),
+    skipped: listStories()
+      .filter((s) => s.projectId === project.id && s.businessDate < today && !s.approvedVersionId)
+      .slice(0, 8)
+      .map((s) => `${s.version.data.script.topic}: ${s.version.data.script.headline}`),
+    feedback: JSON.parse(setting(`taste:feedback:${project.id}`, '[]')),
+  };
+}
 async function generateScript(project: Project, slot: number, seed: number, recent: string[]) {
-  if (liveMode()) return (await claudeScripts.plan(project, 1, recent))[0];
+  if (liveMode()) return (await claudeScripts.plan(project, 1, recent, planContext(project)))[0];
   return demoScript.generate(project, slot, seed, recent);
 }
 function providerDetails() {
@@ -522,7 +554,8 @@ async function plannedScript(runId: string, slot: number, project: Project) {
       .slice(0, 10)
       .map((s) => s.version.data.script.topic);
     const planned: Script[] = [];
-    if (liveMode()) planned.push(...(await claudeScripts.plan(project, 4, recent)));
+    if (liveMode())
+      planned.push(...(await claudeScripts.plan(project, 4, recent, planContext(project))));
     else
       for (let i = 1; i <= 4; i++) {
         const script = await demoScript.generate(project, i, seedFrom(runId), [
@@ -753,6 +786,7 @@ export async function requestChanges(
   }
   return transaction(() => {
     checkVersion(storyId, expected);
+    remember(story.projectId, 'feedback', `${target}: ${feedback.trim().slice(0, 300)}`);
     run(
       'INSERT INTO feedback VALUES(?,?,?,?,?,?,?,?)',
       id(),
@@ -808,6 +842,8 @@ export function approve(items: { storyId: string; versionId: string }[], userId:
       assertEngagementAllowed(getProject(story.projectId), story.version.data.script);
       const errors = validateComposition(story.version.data);
       if (errors.length) throw new AppError(errors.join(' '));
+      const { topic, headline } = story.version.data.script;
+      remember(story.projectId, 'approved', `${topic}: ${headline}`);
       run(
         'INSERT OR IGNORE INTO approvals VALUES(?,?,?,?,?)',
         id(),

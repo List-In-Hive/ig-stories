@@ -618,9 +618,28 @@ export default function StoryEditor({
             <p>
               Sources:{' '}
               {base.data.script.sources.length
-                ? base.data.script.sources.join(', ')
-                : 'Approved project brief; no live research sources.'}
+                ? base.data.script.sources.map((url) => (
+                    <a key={url} href={url} target="_blank" rel="noreferrer">
+                      {url}{' '}
+                    </a>
+                  ))
+                : 'Approved project brief only.'}
             </p>
+            {base.data.script.review && (
+              <p>
+                Review by {base.data.script.review.reviewer}:{' '}
+                {base.data.script.review.passed
+                  ? 'passed'
+                  : base.data.script.review.revised
+                    ? 'revised by Claude after these notes'
+                    : 'flagged'}
+                {base.data.script.review.notes.map((note) => (
+                  <span key={note}>
+                    <br />· {note}
+                  </span>
+                ))}
+              </p>
+            )}
           </details>
         </aside>
       </div>

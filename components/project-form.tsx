@@ -19,6 +19,7 @@ const defaults = {
   facts: '',
   allowEngagement: false,
   generateAt: '08:00',
+  webResearch: true,
   logoId: null as string | null,
   website: '',
   email: '',
@@ -152,6 +153,20 @@ export default function ProjectForm({
                   onChange={(e) => update('generateAt', e.target.value)}
                 />
               </Field>
+              <label className="switch-row">
+                <input
+                  type="checkbox"
+                  checked={form.webResearch}
+                  onChange={(e) => update('webResearch', e.target.checked)}
+                />
+                <span>
+                  <strong>Research timely angles on the web</strong>
+                  <small>
+                    Live AI searches for local events, seasons, and industry news before writing.
+                    Sources are listed on each story.
+                  </small>
+                </span>
+              </label>
               <label className="switch-row project-engagement">
                 <input
                   type="checkbox"
