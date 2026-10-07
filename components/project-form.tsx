@@ -38,6 +38,7 @@ export default function ProjectForm({
   onSave: (project: typeof defaults, projectId?: string) => Promise<void>;
 }) {
   const [form, setForm] = useState({ ...defaults, ...project });
+  const [initial] = useState(() => JSON.stringify({ ...defaults, ...project }));
   const [tab, setTab] = useState('Brief');
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -93,6 +94,13 @@ export default function ProjectForm({
     } finally {
       setDrafting(false);
     }
+  }
+  // A stray click on the backdrop or Escape must not throw away a running AI draft or unsaved edits.
+  function close() {
+    if (drafting || busy || uploading || fontUploading) return;
+    const changed = JSON.stringify(form) !== initial || photos.length > 0;
+    if (changed && !window.confirm('Close without saving? Your changes will be lost.')) return;
+    onClose();
   }
   function update(key: string, value: unknown) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -170,7 +178,7 @@ export default function ProjectForm({
     <Modal
       title={project ? 'Edit project' : 'Create a project'}
       description="A good brief makes better stories. Add the facts your team can confidently use."
-      onClose={onClose}
+      onClose={close}
       wide
     >
       <form onSubmit={submit}>
@@ -196,9 +204,11 @@ export default function ProjectForm({
                       <Sparkles size={16} /> Quick start with AI
                     </strong>
                     <small>
-                      {drafted
-                        ? 'Brief drafted. Check every tab, then create the project.'
-                        : 'Enter the Instagram handle and website, and add up to 10 photos the brand has posted. Claude studies them and fills in the brief, style, palette, and contacts for you to review. Colors and fonts you set on the Branding tab are kept.'}
+                      {drafting
+                        ? 'Claude is studying the photos and website. This usually takes 20–60 seconds; keep this window open.'
+                        : drafted
+                          ? 'Brief drafted. Check every tab, then create the project.'
+                          : 'Enter the Instagram handle and website, and add up to 10 photos the brand has posted. Claude studies them and fills in the brief, style, palette, and contacts for you to review. Colors and fonts you set on the Branding tab are kept.'}
                     </small>
                   </div>
                   <div className="quick-start-fields">
@@ -521,7 +531,7 @@ export default function ProjectForm({
           )}
         </div>
         <footer className="modal-footer">
-          <Button type="button" variant="secondary" onClick={onClose}>
+          <Button type="button" variant="secondary" onClick={close}>
             Cancel
           </Button>
           <Button type="submit" busy={busy} disabled={uploading || fontUploading}>
