@@ -10,7 +10,8 @@ import {
   retentionStatus,
 } from './lifecycle';
 import { businessDate, localHour, nextRun, daysBefore } from './schedule';
-import { demoImage, demoScript, demoResearch, assertDemo } from './providers';
+import { demoImage, demoScript, demoResearch } from './providers';
+import { claudeScripts, openAIImages, missingLiveKeys, CLAUDE_MODEL, OPENAI_IMAGE_MODEL } from './ai';
 import { localStorage } from './storage';
 import { defaultLayout, validateComposition, snapshotFonts } from './composition';
 import type {
@@ -258,14 +259,28 @@ export function appendVersion(
     return getVersion(versionId);
   });
 }
+export const liveMode = () => setting('providerMode', process.env.PROVIDER_MODE || 'demo') !== 'demo';
+const imageProvider = () => (liveMode() ? openAIImages : demoImage);
+async function generateScript(project: Project, slot: number, seed: number, recent: string[]) {
+  if (liveMode()) return (await claudeScripts.plan(project, 1, recent))[0];
+  return demoScript.generate(project, slot, seed, recent);
+}
+function providerDetails() {
+  return liveMode()
+    ? {
+        provider: 'live' as const,
+        label: `AI draft · ${CLAUDE_MODEL} + ${OPENAI_IMAGE_MODEL}`,
+      }
+    : { provider: 'demo' as const, label: 'Demo content · Sample artwork' };
+}
 export async function makeSnapshot(project: Project, slot: number, seed: number, manual?: Script) {
   const recent = listStories()
     .filter((s) => s.projectId === project.id)
     .slice(0, 12)
     .map((s) => s.version.data.script.topic);
-  const script = manual || (await demoScript.generate(project, slot, seed, recent));
+  const script = manual || (await generateScript(project, slot, seed, recent));
   assertEngagementAllowed(project, script);
-  const image = await demoImage.generate(project, script, seed);
+  const image = await imageProvider().generate(project, script, seed);
   return transaction(() => {
     const latestProject = getProject(project.id);
     if (latestProject.updatedAt !== project.updatedAt)
@@ -281,10 +296,9 @@ export async function makeSnapshot(project: Project, slot: number, seed: number,
       backgroundId,
       logoId: project.logoId,
       project: structuredClone(project),
-      provider: 'demo' as const,
+      ...providerDetails(),
       seed,
       prompt: script.visual,
-      label: 'Demo content · Sample artwork',
       fontAssets: snapshotFonts(),
     } satisfies Snapshot;
     registerProjectAssets(project.id, snapshotAssetIds(snapshot));
@@ -447,11 +461,13 @@ export async function processJob(job: Job, at = new Date(), simulateFailure = fa
   } catch (error) {
     if (!one('SELECT id FROM jobs WHERE id=?', job.id)) return;
     const retry = job.attempts < Number(process.env.WORKER_MAX_ATTEMPTS || 3);
+    // Provider rate limits need a longer pause than ordinary failures.
+    const delay = (error as { status?: number }).status === 429 ? 60000 : 5000;
     run(
       'UPDATE jobs SET status=?,error=?,availableAt=? WHERE id=?',
       retry ? 'queued' : 'failed',
       (error as Error).message,
-      new Date(at.getTime() + job.attempts * 5000).toISOString(),
+      new Date(at.getTime() + job.attempts * delay).toISOString(),
       job.id,
     );
     updateRun(job.runId);
@@ -482,13 +498,15 @@ async function plannedScript(runId: string, slot: number, project: Project) {
       .slice(0, 10)
       .map((s) => s.version.data.script.topic);
     const planned: Script[] = [];
-    for (let i = 1; i <= 4; i++) {
-      const script = await demoScript.generate(project, i, seedFrom(runId), [
-        ...recent,
-        ...planned.map((s) => s.topic),
-      ]);
-      planned.push(script);
-    }
+    if (liveMode()) planned.push(...(await claudeScripts.plan(project, 4, recent)));
+    else
+      for (let i = 1; i <= 4; i++) {
+        const script = await demoScript.generate(project, i, seedFrom(runId), [
+          ...recent,
+          ...planned.map((s) => s.topic),
+        ]);
+        planned.push(script);
+      }
     transaction(() => {
       planned.forEach((script, i) =>
         run(
@@ -523,7 +541,6 @@ export async function createManual(
   userId: string,
   requestKey: string,
 ) {
-  assertDemo();
   const previous = one<{ id: string }>(
     'SELECT id FROM stories WHERE runId IN (SELECT id FROM runs WHERE requestKey=?)',
     requestKey,
@@ -626,9 +643,10 @@ export async function reviseStory(
         snapshot = await makeSnapshot(getProject(story.projectId), 1, seed + 1);
       }
     } else {
-      const image = await demoImage.generate(current.project, current.script, seed);
+      const image = await imageProvider().generate(current.project, current.script, seed);
       snapshot = {
         ...structuredClone(current),
+        ...providerDetails(),
         backgroundId: storeProjectBackground(story.projectId, image),
         seed,
         prompt: current.script.visual,
@@ -660,7 +678,27 @@ export async function requestChanges(
   let snapshot = structuredClone(story.version.data);
   let applied = false;
   const normalized = feedback.toLowerCase();
-  if (target === 'text' && /shorten.*headline/.test(normalized)) {
+  if (liveMode() && target === 'text') {
+    const script = await claudeScripts.rewrite(snapshot.project, snapshot.script, feedback);
+    snapshot.script = script;
+    snapshot.layout.headline.text = script.headline;
+    snapshot.layout.body.text = script.body;
+    snapshot.layout.cta.text = script.cta;
+    applied = true;
+  } else if (liveMode() && target === 'visual') {
+    const visual = await claudeScripts.revisualize(snapshot.project, snapshot.script, feedback);
+    const seed = seedFrom(id());
+    snapshot.script = { ...snapshot.script, visual };
+    const image = await openAIImages.generate(snapshot.project, snapshot.script, seed);
+    snapshot = {
+      ...snapshot,
+      ...providerDetails(),
+      backgroundId: storeProjectBackground(story.projectId, image),
+      seed,
+      prompt: visual,
+    };
+    applied = true;
+  } else if (target === 'text' && /shorten.*headline/.test(normalized)) {
     const headline = snapshot.layout.headline.text.split(/\s+/).slice(0, 3).join(' ');
     if (headline !== snapshot.layout.headline.text) {
       snapshot.layout.headline.text = headline;
@@ -722,7 +760,9 @@ export async function requestChanges(
       applied,
       message: applied
         ? 'Feedback applied as a new draft.'
-        : 'Feedback saved. Demo supports “shorten headline”, “center text”, and “warmer/cooler palette”. Applying other feedback requires the live AI connection.',
+        : liveMode()
+          ? 'Feedback saved. Layout feedback other than “center text” is applied by hand in the editor.'
+          : 'Feedback saved. Demo supports “shorten headline”, “center text”, and “warmer/cooler palette”. Applying other feedback requires the live AI connection.',
     };
   });
 }
@@ -801,7 +841,8 @@ export function state(user: User): AppState {
       'SELECT * FROM research ORDER BY fetchedAt DESC LIMIT 100',
     ).map((r) => ({ ...r, data: JSON.parse(r.data) })),
     settings: {
-      providerMode: setting('providerMode', process.env.PROVIDER_MODE || 'demo'),
+      providerMode: liveMode() ? 'live' : 'demo',
+      missingKeys: missingLiveKeys(),
       automationEnabled: setting('automationEnabled', 'true') === 'true',
     },
     worker: {

@@ -58,7 +58,7 @@ export type Snapshot = {
   backgroundId: string;
   logoId: string | null;
   project: Project;
-  provider: 'demo';
+  provider: 'demo' | 'live';
   seed: number;
   prompt: string;
   label: string;
@@ -125,7 +125,7 @@ export type AppState = {
   runs: Run[];
   jobs: Job[];
   research: ResearchRecord[];
-  settings: { providerMode: string; automationEnabled: boolean };
+  settings: { providerMode: string; missingKeys: string[]; automationEnabled: boolean };
   worker: { online: boolean; heartbeat: string | null; nextRun: string };
   today: string;
   historyStart: string;

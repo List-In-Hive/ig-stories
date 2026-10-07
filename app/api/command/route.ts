@@ -122,7 +122,7 @@ export async function POST(request: Request) {
         admin(user);
         const parsed = z
           .object({
-            providerMode: z.enum(['demo', 'unconfigured']),
+            providerMode: z.enum(['demo', 'live']),
             automationEnabled: z.boolean(),
           })
           .parse(body.settings);
