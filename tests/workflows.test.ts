@@ -278,6 +278,39 @@ test('text edit never invokes image provider, exact approvals and immutable vers
   );
   chosenStory = service.getStory(draft.storyId);
 });
+test('each text layer keeps its own weight, case, spacing, shadow and color', () => {
+  const base = chosenStory.version;
+  const layout = structuredClone(base.data.layout);
+  layout.body = {
+    ...layout.body,
+    text: 'Small batch roast',
+    bold: true,
+    uppercase: true,
+    lineHeight: 1.6,
+    shadow: true,
+    color: '#ffffff',
+  };
+  layout.headline.bold = false;
+  const saved = service.saveStory(chosenStory.id, base.id, layout, admin.id);
+  assert.equal(saved.data.layout.body.lineHeight, 1.6);
+  const svg = composition.renderSvg(saved.data);
+  const body = svg.match(/<text[^>]*fill="#ffffff"[^>]*>.*?<\/text>/)?.[0] || '';
+  assert.match(body, /font-weight="700"/);
+  assert.match(body, /filter="url\(#shadow\)"/);
+  assert.match(body, /SMALL BATCH ROAST/);
+  assert.match(svg, new RegExp(`font-size="${layout.headline.size}" font-weight="400"`));
+  assert.throws(
+    () =>
+      service.saveStory(
+        chosenStory.id,
+        saved.id,
+        { ...layout, body: { ...layout.body, lineHeight: 9 } },
+        admin.id,
+      ),
+    /2\.5/,
+  );
+  chosenStory = service.getStory(chosenStory.id);
+});
 test('regenerate retains script, new idea changes copy, and both preserve earlier versions', async () => {
   const before = chosenStory.version;
   const image = await service.reviseStory(chosenStory.id, before.id, 'image', admin.id);

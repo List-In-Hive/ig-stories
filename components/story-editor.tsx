@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type MouseEvent } from 'react';
 import {
   ArrowLeft,
   Check,
@@ -18,11 +18,53 @@ import {
   AlignRight,
   ShieldCheck,
   AlertCircle,
+  Bold,
+  CaseUpper,
+  Layers,
+  Plus,
 } from 'lucide-react';
 import type { FontName, Layer, Layout, Story, Version } from '@/lib/types';
 import { api, Button, Badge, Field, formatTime } from './ui';
 import SaveStories from './save-stories';
 import type { Command } from './workspace';
+const LAYERS = [
+  { key: 'headline', label: 'Headline' },
+  { key: 'body', label: 'Body' },
+  { key: 'cta', label: 'CTA' },
+  { key: 'contact', label: 'Contact' },
+  { key: 'logo', label: 'Logo' },
+] as const;
+const TEXT_LAYERS = ['headline', 'body', 'cta', 'contact'] as const;
+// A rough box for the selected layer on the preview; the server does the exact line wrapping.
+function outlineHeight(key: keyof Layout, layer: Layout[keyof Layout]) {
+  if (key === 'logo') return layer.width / 2;
+  const t = layer as Layer;
+  const perLine = Math.max(1, Math.floor(t.width / (t.size * 0.52)));
+  const lines = t.text
+    .split('\n')
+    .reduce((sum, p) => sum + Math.max(1, Math.ceil(p.length / perLine)), 0);
+  return lines * t.size * (t.lineHeight ?? 1.25) + t.size * 0.3;
+}
+function ColorHex({ value, onChange }: { value: string; onChange: (color: string) => void }) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+  return (
+    <input
+      className="hex-input"
+      aria-label="Hex color"
+      value={draft}
+      maxLength={7}
+      spellCheck={false}
+      onChange={(e) => {
+        const next = e.target.value.trim();
+        setDraft(next);
+        const full = next.startsWith('#') ? next : '#' + next;
+        if (/^#[0-9a-fA-F]{6}$/.test(full)) onChange(full.toLowerCase());
+      }}
+      onBlur={() => setDraft(value)}
+    />
+  );
+}
 type Feedback = {
   id: string;
   text: string;
@@ -190,6 +232,40 @@ export default function StoryEditor({
   }
   const approved = story.approvedVersionId === base.id;
   const selected = layout[selectedLayer];
+  const text = selectedLayer === 'logo' ? null : (selected as Layer);
+  const swatches = [
+    ...new Set(
+      [...(story.version.data.project.colors || []), '#ffffff', '#000000'].map((c) =>
+        c.toLowerCase(),
+      ),
+    ),
+  ];
+  function applyToAll() {
+    if (!text) return;
+    setLayout((current) => {
+      const next = { ...current };
+      for (const l of TEXT_LAYERS) next[l] = { ...next[l], font: text.font, color: text.color };
+      return next;
+    });
+  }
+  // Tapping the preview selects the text layer under the finger (or the closest one above it).
+  function pick(e: MouseEvent<HTMLImageElement>) {
+    const box = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - box.left) / box.width) * 1080;
+    const y = ((e.clientY - box.top) / box.height) * 1920;
+    const hit = LAYERS.filter((l) => {
+      const layer = layout[l.key];
+      return (
+        layer.visible && x >= layer.x - 40 && x <= layer.x + layer.width + 40 && y >= layer.y - 40
+      );
+    }).sort((a, b) => layout[b.key].y - layout[a.key].y)[0];
+    if (!hit) return;
+    setSelectedLayer(hit.key);
+    setTab('Design');
+    // On phones the controls sit below the preview, so bring them into view.
+    if (window.innerWidth < 900)
+      document.querySelector('.editor-controls')?.scrollIntoView({ behavior: 'smooth' });
+  }
   const blocked = !!busy || dirty || conflict;
   return (
     <>
@@ -315,20 +391,21 @@ export default function StoryEditor({
               <>
                 <div className="panel-title">
                   <h3>Every layer, your way.</h3>
-                  <p>Position values use a 1080 × 1920 canvas.</p>
+                  <p>Pick a text, or tap it on the preview, then style it.</p>
                 </div>
-                <Field label="Selected layer">
-                  <select
-                    value={selectedLayer}
-                    onChange={(e) => setSelectedLayer(e.target.value as keyof Layout)}
-                  >
-                    {['headline', 'body', 'cta', 'contact', 'logo'].map((key) => (
-                      <option key={key} value={key}>
-                        {key.charAt(0).toUpperCase() + key.slice(1)}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
+                <div className="layer-picker" role="tablist" aria-label="Layer">
+                  {LAYERS.map((l) => (
+                    <button
+                      key={l.key}
+                      role="tab"
+                      aria-selected={selectedLayer === l.key}
+                      className={`${selectedLayer === l.key ? 'active' : ''} ${layout[l.key].visible ? '' : 'hidden-layer'}`}
+                      onClick={() => setSelectedLayer(l.key)}
+                    >
+                      {l.label}
+                    </button>
+                  ))}
+                </div>
                 <label className="checkbox-row">
                   <input
                     type="checkbox"
@@ -337,11 +414,11 @@ export default function StoryEditor({
                   />
                   Show this layer
                 </label>
-                {selectedLayer !== 'logo' && (
+                {text && (
                   <>
                     <Field label="Font">
                       <select
-                        value={(selected as Layer).font}
+                        value={text.font}
                         onChange={(e) =>
                           update(selectedLayer, { font: e.target.value as FontName })
                         }
@@ -356,25 +433,97 @@ export default function StoryEditor({
                         )}
                       </select>
                     </Field>
-                    <div className="form-grid">
-                      <Field label="Font size">
+                    <Field label="Style" group>
+                      <div className="style-toggles">
+                        {(
+                          [
+                            {
+                              key: 'bold',
+                              label: 'Bold',
+                              icon: Bold,
+                              on: text.bold ?? selectedLayer === 'headline',
+                            },
+                            {
+                              key: 'uppercase',
+                              label: 'Caps',
+                              icon: CaseUpper,
+                              on: !!text.uppercase,
+                            },
+                            { key: 'shadow', label: 'Shadow', icon: Layers, on: !!text.shadow },
+                          ] as const
+                        ).map((t) => (
+                          <button
+                            key={t.key}
+                            aria-pressed={t.on}
+                            className={t.on ? 'active' : ''}
+                            onClick={() => update(selectedLayer, { [t.key]: !t.on })}
+                          >
+                            <t.icon size={16} />
+                            {t.label}
+                          </button>
+                        ))}
+                      </div>
+                    </Field>
+                    <Field label={`Font size · ${text.size}px`}>
+                      <div className="range-row">
+                        <input
+                          type="range"
+                          min={12}
+                          max={180}
+                          value={text.size}
+                          onChange={(e) => update(selectedLayer, { size: Number(e.target.value) })}
+                        />
                         <input
                           type="number"
                           min={12}
                           max={180}
-                          value={(selected as Layer).size}
+                          value={text.size}
                           onChange={(e) => update(selectedLayer, { size: Number(e.target.value) })}
                         />
-                      </Field>
-                      <Field label="Text color">
-                        <input
-                          type="color"
-                          value={(selected as Layer).color}
-                          onChange={(e) => update(selectedLayer, { color: e.target.value })}
+                      </div>
+                    </Field>
+                    <Field label={`Line spacing · ${(text.lineHeight ?? 1.25).toFixed(2)}`}>
+                      <input
+                        type="range"
+                        min={0.8}
+                        max={2.5}
+                        step={0.05}
+                        value={text.lineHeight ?? 1.25}
+                        onChange={(e) =>
+                          update(selectedLayer, { lineHeight: Number(e.target.value) })
+                        }
+                      />
+                    </Field>
+                    <Field label="Text color" group>
+                      <div className="color-picker">
+                        <div className="swatches">
+                          {swatches.map((c) => (
+                            <button
+                              key={c}
+                              aria-label={`Use ${c}`}
+                              title={c}
+                              className={text.color.toLowerCase() === c ? 'active' : ''}
+                              style={{ background: c }}
+                              onClick={() => update(selectedLayer, { color: c })}
+                            />
+                          ))}
+                          <label className="swatch-custom" title="Any color">
+                            <input
+                              type="color"
+                              aria-label="Pick any color"
+                              value={text.color}
+                              onChange={(e) => update(selectedLayer, { color: e.target.value })}
+                            />
+                            <Plus size={14} />
+                          </label>
+                        </div>
+                        <ColorHex
+                          value={text.color}
+                          onChange={(color) => update(selectedLayer, { color })}
                         />
-                      </Field>
-                    </div>
-                    <Field label="Alignment">
+                      </div>
+                    </Field>
+                    <Field label="Alignment" group>
                       <div className="alignment-control">
                         {[
                           { value: 'left', icon: AlignLeft },
@@ -384,7 +533,7 @@ export default function StoryEditor({
                           <button
                             aria-label={`Align ${a.value}`}
                             key={a.value}
-                            className={(selected as Layer).align === a.value ? 'active' : ''}
+                            className={text.align === a.value ? 'active' : ''}
                             onClick={() =>
                               update(selectedLayer, { align: a.value as Layer['align'] })
                             }
@@ -394,6 +543,9 @@ export default function StoryEditor({
                         ))}
                       </div>
                     </Field>
+                    <button className="text-link" onClick={applyToAll}>
+                      Use this font and color for all text
+                    </button>
                   </>
                 )}
                 <div className="form-grid">
@@ -418,6 +570,7 @@ export default function StoryEditor({
                     </Field>
                   ))}
                 </div>
+                <p className="soft-note">Positions use the 1080 × 1920 story canvas.</p>
                 {selectedLayer === 'logo' && (
                   <p className="soft-note">
                     Logo height follows the original aspect ratio. This version keeps its original
@@ -511,9 +664,21 @@ export default function StoryEditor({
           <div className="editor-canvas">
             <img
               alt="Story composition preview"
+              onClick={pick}
               src={preview || `/api/stories/${story.id}/preview?version=${base.id}`}
             />
             {safeArea && <div className="safe-area" />}
+            {tab === 'Design' && selected.visible && (
+              <div
+                className="layer-outline"
+                style={{
+                  left: `${(selected.x / 1080) * 100}%`,
+                  top: `${(selected.y / 1920) * 100}%`,
+                  width: `${(selected.width / 1080) * 100}%`,
+                  height: `${(outlineHeight(selectedLayer, selected) / 1920) * 100}%`,
+                }}
+              />
+            )}
           </div>
           <div className="stage-caption">
             <span>{base.data.label}</span>

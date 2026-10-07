@@ -70,13 +70,23 @@ export function snapshotFonts(project?: Project) {
     ...(brand.bold ? { 'Brand-Bold': brand.bold.id } : {}),
   };
 }
+type TextKey = 'headline' | 'body' | 'cta' | 'contact';
+// Headlines are bold by default; every text layer can override weight, case and spacing.
+export function textStyle(key: TextKey, layer: Layer) {
+  return {
+    bold: layer.bold ?? key === 'headline',
+    lineHeight: layer.lineHeight ?? 1.25,
+    text: layer.uppercase ? layer.text.toLocaleUpperCase() : layer.text,
+  };
+}
 export function wrap(layer: Layer, bold = false, snapshot?: Snapshot) {
   const font = fontFor(layer, bold, snapshot);
   const measure = (s: string) =>
     (font.layout(s).glyphs.reduce((sum, g) => sum + g.advanceWidth, 0) / font.unitsPerEm) *
     layer.size;
   const lines: string[] = [];
-  for (const paragraph of layer.text.split('\n')) {
+  const text = layer.uppercase ? layer.text.toLocaleUpperCase() : layer.text;
+  for (const paragraph of text.split('\n')) {
     let line = '';
     for (const word of paragraph.split(/\s+/).filter(Boolean)) {
       if (measure(word) > layer.width)
@@ -130,12 +140,13 @@ export function validateComposition(snapshot: Snapshot) {
     const layer = snapshot.layout[key];
     if (!layer.visible || !layer.text) continue;
     try {
-      const lines = wrap(layer, key === 'headline', snapshot);
+      const style = textStyle(key, layer);
+      const lines = wrap(layer, style.bold, snapshot);
       if (
         layer.x < 60 ||
         layer.y < 100 ||
         layer.x + layer.width > 1020 ||
-        layer.y + lines.length * layer.size * 1.25 > 1820
+        layer.y + lines.length * layer.size * style.lineHeight > 1820
       )
         errors.push(
           `${key}: text extends outside the safe area. Reduce the font size or move the layer.`,
@@ -195,11 +206,12 @@ export function renderSvg(snapshot: Snapshot) {
     .map((key) => {
       const layer = snapshot.layout[key];
       if (!layer.visible) return '';
+      const style = textStyle(key, layer);
       let lines: string[];
       try {
-        lines = wrap(layer, key === 'headline', snapshot);
+        lines = wrap(layer, style.bold, snapshot);
       } catch {
-        lines = [layer.text];
+        lines = [style.text];
       }
       const x =
         layer.align === 'center'
@@ -207,7 +219,7 @@ export function renderSvg(snapshot: Snapshot) {
           : layer.align === 'right'
             ? layer.x + layer.width
             : layer.x;
-      return `<text font-family="${xml(familyFor(layer, key === 'headline', snapshot))}" font-size="${layer.size}" font-weight="${key === 'headline' ? 700 : 400}" fill="${xml(layer.color)}" text-anchor="${layer.align === 'center' ? 'middle' : layer.align === 'right' ? 'end' : 'start'}">${lines.map((line, i) => `<tspan x="${x}" y="${layer.y + layer.size + i * layer.size * 1.25}">${xml(line)}</tspan>`).join('')}</text>`;
+      return `<text font-family="${xml(familyFor(layer, style.bold, snapshot))}" font-size="${layer.size}" font-weight="${style.bold ? 700 : 400}" fill="${xml(layer.color)}"${layer.shadow ? ' filter="url(#shadow)"' : ''} text-anchor="${layer.align === 'center' ? 'middle' : layer.align === 'right' ? 'end' : 'start'}">${lines.map((line, i) => `<tspan x="${x}" y="${layer.y + layer.size + i * layer.size * style.lineHeight}">${xml(line)}</tspan>`).join('')}</text>`;
     })
     .join('');
   const logo = snapshot.layout.logo;
@@ -216,7 +228,7 @@ export function renderSvg(snapshot: Snapshot) {
     const asset = localStorage.read(snapshot.logoId);
     logoSvg = `<image href="${uri(snapshot.logoId)}" x="${logo.x}" y="${logo.y}" width="${logo.width}" height="${(logo.width * asset.height) / asset.width}"/>`;
   }
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920"><style>${css}</style><image href="${uri(snapshot.backgroundId)}" width="1080" height="1920"/>${logoSvg}${layers}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920"><style>${css}</style><defs><filter id="shadow" x="-10%" y="-10%" width="120%" height="140%"><feDropShadow dx="0" dy="3" stdDeviation="6" flood-color="#000" flood-opacity="0.45"/></filter></defs><image href="${uri(snapshot.backgroundId)}" width="1080" height="1920"/>${logoSvg}${layers}</svg>`;
 }
 export function renderPng(snapshot: Snapshot) {
   const errors = validateComposition(snapshot);

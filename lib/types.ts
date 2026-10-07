@@ -45,6 +45,11 @@ export type Layer = {
   font: FontName;
   align: 'left' | 'center' | 'right';
   visible: boolean;
+  // Optional styling; older stories leave these out and keep the defaults.
+  bold?: boolean;
+  uppercase?: boolean;
+  lineHeight?: number;
+  shadow?: boolean;
 };
 export type Layout = {
   headline: Layer;

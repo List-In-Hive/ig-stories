@@ -106,18 +106,28 @@ export function Modal({
 export function Field({
   label,
   hint,
+  group,
   children,
 }: {
   label: string;
   hint?: string;
+  // A set of buttons is not one form control, so it gets a named group instead of a label.
+  group?: boolean;
   children: ReactNode;
 }) {
-  return (
-    <label className="field">
+  const body = (
+    <>
       <span>{label}</span>
       {children}
       {hint && <small>{hint}</small>}
-    </label>
+    </>
+  );
+  return group ? (
+    <div className="field" role="group" aria-label={label}>
+      {body}
+    </div>
+  ) : (
+    <label className="field">{body}</label>
   );
 }
 export function Empty({
