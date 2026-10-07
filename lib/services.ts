@@ -9,9 +9,22 @@ import {
   pruneStoryHistory,
   retentionStatus,
 } from './lifecycle';
-import { businessDate, localHour, nextRun, daysBefore } from './schedule';
+import {
+  businessDate,
+  nextRun,
+  daysBefore,
+  scheduledAt,
+  timeZone,
+  DEFAULT_GENERATE_AT,
+} from './schedule';
 import { demoImage, demoScript, demoResearch } from './providers';
-import { claudeScripts, openAIImages, missingLiveKeys, CLAUDE_MODEL, OPENAI_IMAGE_MODEL } from './ai';
+import {
+  claudeScripts,
+  openAIImages,
+  missingLiveKeys,
+  CLAUDE_MODEL,
+  OPENAI_IMAGE_MODEL,
+} from './ai';
 import { localStorage } from './storage';
 import { defaultLayout, validateComposition, snapshotFonts } from './composition';
 import type {
@@ -50,6 +63,10 @@ export const projectSchema = z.object({
   prohibited: text,
   facts: text,
   allowEngagement: z.boolean().default(false),
+  generateAt: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Use a 24-hour time such as 08:00.')
+    .default(DEFAULT_GENERATE_AT),
   logoId: z.string().nullable().default(null),
   website: z
     .string()
@@ -104,6 +121,7 @@ type ProjectRow = {
 export function listProjects() {
   return query<ProjectRow>('SELECT * FROM projects ORDER BY createdAt').map((r) => ({
     allowEngagement: false,
+    generateAt: DEFAULT_GENERATE_AT,
     ...JSON.parse(r.data),
     id: r.id,
     name: r.name,
@@ -259,7 +277,8 @@ export function appendVersion(
     return getVersion(versionId);
   });
 }
-export const liveMode = () => setting('providerMode', process.env.PROVIDER_MODE || 'demo') !== 'demo';
+export const liveMode = () =>
+  setting('providerMode', process.env.PROVIDER_MODE || 'demo') !== 'demo';
 const imageProvider = () => (liveMode() ? openAIImages : demoImage);
 async function generateScript(project: Project, slot: number, seed: number, recent: string[]) {
   if (liveMode()) return (await claudeScripts.plan(project, 1, recent))[0];
@@ -360,9 +379,12 @@ export function enqueueRun(
     return runId;
   });
 }
-export function dailyBatch(at = new Date()) {
+// `dueOnly` limits the batch to projects whose daily generation time has passed.
+export function dailyBatch(at = new Date(), dueOnly = false) {
+  const today = businessDate(at);
   return listProjects()
     .filter((p) => p.status === 'active')
+    .filter((p) => !dueOnly || at >= scheduledAt(today, p.generateAt))
     .map((p) => enqueueRun(p.id, 'scheduled', at));
 }
 export function claimJob(at = new Date()) {
@@ -473,17 +495,19 @@ export async function processJob(job: Job, at = new Date(), simulateFailure = fa
     updateRun(job.runId);
   }
 }
+// Returns how many jobs it processed so the worker can slow down while idle.
 export async function workerTick(at = new Date()) {
   setSetting('workerHeartbeat', new Date().toISOString());
   recoverJobs(at);
-  if (setting('automationEnabled', 'true') === 'true' && localHour(at) >= 8) dailyBatch(at);
+  if (setting('automationEnabled', 'true') === 'true') dailyBatch(at, true);
   const pending = [];
-  for (let i = 0; i < Math.max(1, Math.min(8, Number(process.env.WORKER_CONCURRENCY || 2))); i++) {
+  for (let i = 0; i < Math.max(1, Math.min(8, Number(process.env.WORKER_CONCURRENCY || 3))); i++) {
     const job = claimJob(at);
     if (job) pending.push(processJob(job, at));
   }
   await Promise.all(pending);
   pruneStoryHistory(at);
+  return pending.length;
 }
 
 async function plannedScript(runId: string, slot: number, project: Project) {
@@ -844,11 +868,15 @@ export function state(user: User): AppState {
       providerMode: liveMode() ? 'live' : 'demo',
       missingKeys: missingLiveKeys(),
       automationEnabled: setting('automationEnabled', 'true') === 'true',
+      timeZone: timeZone(),
     },
     worker: {
-      online: !!heartbeat && Date.now() - Date.parse(heartbeat) < 15000,
+      online: !!heartbeat && Date.now() - Date.parse(heartbeat) < 45000,
       heartbeat: heartbeat || null,
-      nextRun: nextRun(new Date()),
+      nextRun: nextRun(
+        new Date(),
+        projects.filter((p) => p.status === 'active').map((p) => p.generateAt),
+      ),
     },
     today,
     historyStart,

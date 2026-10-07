@@ -57,7 +57,11 @@ const project = service.listProjects()[0];
 
 test('live mode plans four distinct Claude scripts per run and paints OpenAI backgrounds', async () => {
   store.setSetting('providerMode', 'live');
-  replies = [{ stories: ['Slow mornings', 'Pastry craft', 'Seasonal cup', 'Our space'].map((t) => story(t)) }];
+  replies = [
+    {
+      stories: ['Slow mornings', 'Pastry craft', 'Seasonal cup', 'Our space'].map((t) => story(t)),
+    },
+  ];
   const runId = service.enqueueRun(project.id, 'manual', new Date(), 'live-run-four-slots');
   for (let i = 0; i < 4; i++) await service.processJob(service.claimJob()!);
   const stories = service.listStories().filter((s) => s.runId === runId);
@@ -120,4 +124,41 @@ test('live mode without API keys fails clearly instead of falling back to demo',
   await assert.rejects(service.makeSnapshot(project, 1, 1), /OPENAI_API_KEY/);
   process.env.OPENAI_API_KEY = key;
   store.setSetting('providerMode', 'demo');
+});
+
+test('each project generates at its own time in the workspace time zone', async () => {
+  const schedule = await import('../lib/schedule');
+  store.setSetting('timeZone', 'Asia/Yerevan');
+  assert.equal(
+    schedule.scheduledAt('2031-06-10', '09:30').toISOString(),
+    '2031-06-10T05:30:00.000Z',
+  );
+  // 02:30 does not exist on the US spring-forward date; it resolves to 03:00.
+  store.setSetting('timeZone', 'America/New_York');
+  assert.equal(
+    schedule.scheduledAt('2031-03-09', '02:30').toISOString(),
+    '2031-03-09T07:00:00.000Z',
+  );
+  store.setSetting('timeZone', 'Asia/Yerevan');
+  const [early, late] = service.listProjects().filter((p) => p.status === 'active');
+  service.saveProject({ ...early, generateAt: '07:00' }, early.id);
+  service.saveProject({ ...late, generateAt: '11:00' }, late.id);
+  const runsOn = (date: string) =>
+    store
+      .query<{ projectId: string }>(
+        "SELECT projectId FROM runs WHERE businessDate=? AND kind='scheduled'",
+        date,
+      )
+      .map((r) => r.projectId);
+  store.setSetting('automationEnabled', 'true');
+  service.dailyBatch(new Date('2031-06-10T04:00:00Z'), true); // 08:00 Yerevan
+  assert.ok(runsOn('2031-06-10').includes(early.id));
+  assert.ok(!runsOn('2031-06-10').includes(late.id));
+  service.dailyBatch(new Date('2031-06-10T07:00:00Z'), true); // 11:00 Yerevan
+  assert.ok(runsOn('2031-06-10').includes(late.id));
+  assert.equal(
+    schedule.nextRun(new Date('2031-06-10T04:00:00Z'), ['07:00', '11:00']),
+    '2031-06-10T07:00:00.000Z',
+  );
+  store.setSetting('timeZone', 'America/Los_Angeles');
 });

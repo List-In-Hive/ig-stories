@@ -19,6 +19,7 @@ import {
 } from '@/lib/services';
 import { setSetting } from '@/lib/db';
 import { deleteProject } from '@/lib/lifecycle';
+import { isTimeZone } from '@/lib/schedule';
 export const runtime = 'nodejs';
 export async function POST(request: Request) {
   try {
@@ -124,10 +125,12 @@ export async function POST(request: Request) {
           .object({
             providerMode: z.enum(['demo', 'live']),
             automationEnabled: z.boolean(),
+            timeZone: z.string().refine(isTimeZone, 'Choose a valid time zone.').optional(),
           })
           .parse(body.settings);
         setSetting('providerMode', parsed.providerMode);
         setSetting('automationEnabled', String(parsed.automationEnabled));
+        if (parsed.timeZone) setSetting('timeZone', parsed.timeZone);
         result = { ok: true };
         break;
       }

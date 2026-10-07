@@ -478,8 +478,8 @@ export default function StoryEditor({
                   <ArrowRightIcon />
                 </Button>
                 <p className="soft-note">
-                  Demo applies the four actions above. Other requests are saved for the later AI
-                  connection, with no claim that a change was applied.
+                  With Live AI, text and visual feedback is applied by Claude as a new draft. Demo
+                  applies only the example actions above.
                 </p>
                 {feedbackHistory.map((f) => (
                   <div className="feedback-entry" key={f.id}>
@@ -511,7 +511,7 @@ export default function StoryEditor({
             {safeArea && <div className="safe-area" />}
           </div>
           <div className="stage-caption">
-            <span>Demo content · Sample artwork</span>
+            <span>{base.data.label}</span>
             <small>Text & logo are separate, editable layers.</small>
           </div>
           {errors.length > 0 && (
@@ -610,7 +610,7 @@ export default function StoryEditor({
           <details className="prompt-details">
             <summary>Generation details</summary>
             <p>
-              Provider: deterministic demo
+              Provider: {base.data.provider === 'live' ? 'Claude + OpenAI' : 'demo'}
               <br />
               Seed: {base.data.seed}
             </p>

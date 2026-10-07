@@ -16,6 +16,7 @@ export type Project = {
   prohibited: string;
   facts: string;
   allowEngagement: boolean;
+  generateAt: string;
   logoId: string | null;
   website: string;
   email: string;
@@ -125,7 +126,12 @@ export type AppState = {
   runs: Run[];
   jobs: Job[];
   research: ResearchRecord[];
-  settings: { providerMode: string; missingKeys: string[]; automationEnabled: boolean };
+  settings: {
+    providerMode: string;
+    missingKeys: string[];
+    automationEnabled: boolean;
+    timeZone: string;
+  };
   worker: { online: boolean; heartbeat: string | null; nextRun: string };
   today: string;
   historyStart: string;

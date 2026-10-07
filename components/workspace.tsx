@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   Layers3,
@@ -432,9 +432,9 @@ export default function Workspace() {
               1080 × 1920 PNG, then post manually.
             </p>
             <div className="soft-note">
-              Artwork and generated copy are deterministic demo content. Instagram, news, AI, email,
-              and cloud scheduling are not connected. Data is saved in this app’s local SQLite
-              database and files.
+              {state.settings.providerMode === 'live'
+                ? 'Claude writes the copy from each brief and OpenAI paints the artwork. Instagram is not connected, so posting stays manual.'
+                : 'Artwork and copy are demo content. Switch to Live AI in Settings to use Claude and OpenAI.'}
             </div>
           </div>
         </Modal>
@@ -810,7 +810,9 @@ function StoryList({
       <div className="research-note">
         <Info size={14} />
         <span>
-          Demo content from your approved briefs. Instagram updates and live news are unavailable.
+          {state.settings.providerMode === 'live'
+            ? 'AI drafts from your approved briefs. Review every story before posting.'
+            : 'Demo content from your approved briefs. Switch to Live AI in Settings for real drafts.'}
         </span>
       </div>
       {state.projects
@@ -1588,12 +1590,17 @@ function SettingsPage({
   const [notes, setNotes] = useState(false);
   const [provider, setProvider] = useState(state.settings.providerMode);
   const [enabled, setEnabled] = useState(state.settings.automationEnabled);
+  const [zone, setZone] = useState(state.settings.timeZone);
+  const zones = useMemo(() => {
+    const all = Intl.supportedValuesOf('timeZone');
+    return all.includes(zone) ? all : [zone, ...all];
+  }, [zone]);
   const [busy, setBusy] = useState(false);
   async function save() {
     setBusy(true);
     try {
       await command('settings', {
-        settings: { providerMode: provider, automationEnabled: enabled },
+        settings: { providerMode: provider, automationEnabled: enabled, timeZone: zone },
       });
       notify('Workspace settings saved.');
     } catch {
@@ -1670,31 +1677,41 @@ function SettingsPage({
             <div>
               <h3>Generation provider</h3>
               <p>
-                Demo creates sample artwork and project-specific copy from approved facts. Demo
-                operations have no measured OpenAI cost.
+                Live AI uses Claude for story copy and OpenAI for artwork, and is billed to your API
+                accounts. Demo creates free sample content for trying the app.
               </p>
+              {provider === 'live' && state.settings.missingKeys.length > 0 && (
+                <p className="form-error" role="alert">
+                  Missing on the server: {state.settings.missingKeys.join(', ')}. Live generation
+                  will fail until these are set.
+                </p>
+              )}
             </div>
             <select
               aria-label="Generation provider mode"
               value={provider}
               onChange={(e) => setProvider(e.target.value)}
             >
-              <option value="demo">Deterministic demo</option>
-              <option value="unconfigured">Live (unconfigured)</option>
+              <option value="demo">Demo (free sample content)</option>
+              <option value="live">Live AI (Claude + OpenAI)</option>
             </select>
           </div>
           <div className="integration-grid">
             {[
-              ['OpenAI', 'Scripts & image generation'],
-              ['Instagram + news', 'Recent posts & industry research'],
-              ['Supabase', 'Hosted database, authentication & storage'],
-              ['Trigger.dev', 'Managed jobs & cloud scheduling'],
-              ['GitHub', 'Repository collaboration & deployments'],
-            ].map(([name, description]) => (
+              ['Claude', 'Story copy and feedback rewrites', 'ANTHROPIC_API_KEY'],
+              ['OpenAI', 'Background artwork', 'OPENAI_API_KEY'],
+              ['Instagram', 'Reading account posts and publishing', ''],
+            ].map(([name, description, key]) => (
               <div className="surface integration-card" key={name}>
                 <div className="section-heading">
                   <h3>{name}</h3>
-                  <Badge status="disconnected" />
+                  <Badge
+                    status={
+                      key && !state.settings.missingKeys.includes(key)
+                        ? 'connected'
+                        : 'disconnected'
+                    }
+                  />
                 </div>
                 <p>{description}</p>
                 <Button variant="ghost" onClick={() => setNotes(true)}>
@@ -1719,8 +1736,17 @@ function SettingsPage({
             <div className="automation-details">
               <div>
                 <span>Schedule</span>
-                <strong>8:00 AM, every day</strong>
-                <small>America/Los_Angeles · daylight-saving aware</small>
+                <strong>Every day, per project</strong>
+                <small>
+                  {[
+                    ...new Set(
+                      state.projects.filter((p) => p.status === 'active').map((p) => p.generateAt),
+                    ),
+                  ]
+                    .sort()
+                    .join(', ') || '08:00'}{' '}
+                  · set each time in the project
+                </small>
               </div>
               <div>
                 <span>Next scheduled time</span>
@@ -1737,6 +1763,18 @@ function SettingsPage({
                 <small>{state.counts.projects} active projects × 4 independent drafts</small>
               </div>
             </div>
+            <Field
+              label="Workspace time zone"
+              hint="Daily generation times and the three-day history follow this time zone."
+            >
+              <select value={zone} onChange={(e) => setZone(e.target.value)}>
+                {zones.map((z) => (
+                  <option key={z} value={z}>
+                    {z.replaceAll('_', ' ')}
+                  </option>
+                ))}
+              </select>
+            </Field>
             <label className="switch-row">
               <input
                 type="checkbox"
@@ -1744,10 +1782,10 @@ function SettingsPage({
                 onChange={(e) => setEnabled(e.target.checked)}
               />
               <span>
-                <strong>Enable local daily scheduling</strong>
+                <strong>Enable daily scheduling</strong>
                 <small>
-                  Paused and archived projects are skipped. A restart after 8 AM catches up today’s
-                  missing runs.
+                  Paused and archived projects are skipped. If the worker restarts after a project’s
+                  time, today’s missing run is caught up.
                 </small>
               </span>
             </label>
@@ -1772,16 +1810,15 @@ function SettingsPage({
               </Button>
             </div>
             <div className="soft-note">
-              History keeps today plus the previous two Los Angeles dates. Older stories, versions,
-              and unused images are deleted once all active projects have four completed daily
-              drafts.
+              History keeps today plus the previous two dates. Older stories, versions, and unused
+              images are deleted once all active projects have four completed daily drafts.
               {state.retention.awaitingDailyBatch
                 ? ' Cleanup is waiting for today’s daily batch.'
                 : ` Last cleanup: ${state.retention.lastCleanup || 'not run yet'}.`}
             </div>
             <div className="soft-note">
-              The local worker continues when browser tabs close. It requires a running Node
-              environment and a writable data directory. A cloud schedule is not active.
+              The worker runs on the server and continues when browser tabs close. It needs an
+              always-on Node host with a persistent disk.
             </div>
           </div>
           <div className="surface">
@@ -1792,30 +1829,26 @@ function SettingsPage({
       )}
       {notes && (
         <Modal
-          title="Ready for the next phase"
-          description="Provider adapters are present; connections require implementation and configuration."
+          title="Connecting the AI providers"
+          description="API keys live only on the server, never in the browser."
           onClose={() => setNotes(false)}
         >
           <div className="modal-body guide">
             <p>
-              <strong>OpenAI / research:</strong> Add server-side credentials, implement the
-              provider interfaces, and verify factual sources before enabling live mode.
+              <strong>Claude:</strong> set <code>ANTHROPIC_API_KEY</code> in the server environment.
+              Optional: <code>ANTHROPIC_MODEL</code> to choose another model.
             </p>
             <p>
-              <strong>Supabase:</strong> Migrate the schema and data, connect the admin account,
-              apply policies, and transfer assets to private managed storage.
+              <strong>OpenAI:</strong> set <code>OPENAI_API_KEY</code>. Optional:{' '}
+              <code>OPENAI_IMAGE_MODEL</code> and <code>OPENAI_IMAGE_QUALITY</code> (low, medium,
+              high).
             </p>
             <p>
-              <strong>Trigger.dev:</strong> Connect the shared job services, transactional claiming,
-              retries, and the Los Angeles daily schedule.
-            </p>
-            <p>
-              <strong>GitHub / deployment:</strong> Add the remote and CI, then choose durable
-              storage and a persistent worker or managed jobs.
+              <strong>Instagram:</strong> not connected. Approved stories are downloaded and posted
+              by hand.
             </p>
             <p className="soft-note">
-              The README contains the full migration checklist. A database connection string alone
-              is not a complete migration.
+              Restart the app after changing keys, then choose Live AI above and save.
             </p>
           </div>
         </Modal>

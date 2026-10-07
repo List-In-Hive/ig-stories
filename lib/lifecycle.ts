@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { dataDir, one, query, run, transaction, now, setting, setSetting } from './db';
 import { AppError, requireValue } from './errors';
-import { businessDate, daysBefore, localHour } from './schedule';
+import { businessDate, daysBefore, scheduledAt } from './schedule';
 import type { Snapshot } from './types';
 
 export function snapshotAssetIds(snapshot: Snapshot) {
@@ -133,9 +133,14 @@ export function deleteProject(projectId: string, confirmation: string) {
   return { deleted: true, ...deleted, pendingFileDeletes };
 }
 export function dailyStoriesReady(at = new Date()) {
-  if (localHour(at) < 8) return false;
   const today = businessDate(at);
-  return query<{ id: string }>("SELECT id FROM projects WHERE status='active'").every((project) => {
+  if (at < scheduledAt(today)) return false;
+  const active = query<{ id: string; data: string }>(
+    "SELECT id,data FROM projects WHERE status='active'",
+  );
+  // Cleanup waits until every active project has reached its own generation time.
+  if (active.some((p) => at < scheduledAt(today, JSON.parse(p.data).generateAt))) return false;
+  return active.every((project) => {
     const result = one<{ total: number; complete: number; stories: number }>(
       "SELECT count(j.id) AS total,sum(CASE WHEN j.status='complete' THEN 1 ELSE 0 END) AS complete,count(s.id) AS stories FROM runs r JOIN jobs j ON j.runId=r.id LEFT JOIN stories s ON s.id=j.storyId WHERE r.projectId=? AND r.businessDate=? AND r.kind='scheduled'",
       project.id,

@@ -12,9 +12,7 @@ import type { ImageProvider, Project, Script } from './types';
 export const CLAUDE_MODEL = process.env.ANTHROPIC_MODEL || 'claude-opus-5-5';
 export const OPENAI_IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || 'gpt-image-2';
 const OPENAI_IMAGE_QUALITY = (process.env.OPENAI_IMAGE_QUALITY || 'medium') as
-  | 'low'
-  | 'medium'
-  | 'high';
+  'low' | 'medium' | 'high';
 
 export function missingLiveKeys() {
   return [

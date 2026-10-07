@@ -18,6 +18,7 @@ const defaults = {
   prohibited: '',
   facts: '',
   allowEngagement: false,
+  generateAt: '08:00',
   logoId: null as string | null,
   website: '',
   email: '',
@@ -130,7 +131,7 @@ export default function ProjectForm({
               </div>
               <Field
                 label="Public Instagram URL"
-                hint="Stored for the future connection. Live retrieval is currently unavailable."
+                hint="Stored for reference. Reading this account's posts is not connected yet."
               >
                 {input('instagram', 'https://www.instagram.com/yourbrand/')}
               </Field>
@@ -140,6 +141,16 @@ export default function ProjectForm({
                   <option value="paused">Paused — manual generation only</option>
                   {project && <option value="archived">Archived — separate tab</option>}
                 </select>
+              </Field>
+              <Field
+                label="Daily generation time"
+                hint="Four new drafts are created at this time every day, in the workspace time zone."
+              >
+                <input
+                  type="time"
+                  value={form.generateAt}
+                  onChange={(e) => update('generateAt', e.target.value)}
+                />
               </Field>
               <label className="switch-row project-engagement">
                 <input
