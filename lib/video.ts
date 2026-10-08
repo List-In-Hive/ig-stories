@@ -34,6 +34,10 @@ async function ffmpeg(args: string[]) {
       timeout: 180_000,
     });
   } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT')
+      throw new AppError(
+        'ffmpeg is missing. Run npm install (it adds ffmpeg-static), then restart.',
+      );
     const detail = String((error as { stderr?: string }).stderr || (error as Error).message);
     console.error('ffmpeg failed:', detail.slice(-2000));
     throw new AppError('The video could not be made. Try again or download the image.');
