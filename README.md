@@ -52,6 +52,15 @@ Engagement stories (polls, questions, DM prompts) are only produced for projects
 
 Each project can hold up to 60 of the brand's own photos (project form, **Photos** tab) and can use free stock photos from Pixabay when `PIXABAY_API_KEY` is set (`PEXELS_API_KEY` also works). When either is available, about half of each day's stories use a real photo, brand photos first and least recently used, and the rest stay AI artwork; the pattern shifts daily. Claude writes a short stock search for every story, and stock photos already used by the brand are skipped. If a real photo cannot be fetched, the story falls back to AI artwork. In the editor, **Find stock photo** and **Brand photos** swap the background while keeping the text and design, and stock photos show the photographer's credit.
 
+## Video stories
+
+An approved story can be saved as an MP4 from the editor's **Video story** box:
+
+- **Make video** (free): an 8-second 1080×1920 H.264 video with a slow camera move (zoom in, zoom out or pan) on the background while the logo, headline and body fade and ease in. It is rendered with ffmpeg; the `ffmpeg-static` package ships a binary, and `FFMPEG_PATH` overrides it.
+- **Animate with AI** (needs `RUNWAYML_API_SECRET`): Runway (`gen4_turbo` by default, `RUNWAY_MODEL` to change) animates the clean background into a 5-second clip, about $0.25 each, and the story's own text is added on top so it stays exact. The editor checks on the clip until it is ready; the finished video is kept with its story version.
+
+OpenAI's Sora video API was shut down in September 2026, so it is not used.
+
 ## Adding an account
 
 The project form's **Quick start with AI** takes the Instagram handle, the website, and up to 20 photos the brand has posted. Two models work in parallel: ChatGPT (`OPENAI_VISION_MODEL`, default `OPENAI_REVIEW_MODEL`) studies the photos for visual direction, palette, font, recurring themes, and any facts written on them, while Claude reads the website (with web search when it is thin) for the description, services, audience, facts, tone, and contacts. The photos decide the look and the research decides the words; nothing is saved until the admin reviews the form. Photos are shrunk to 1024 px in the browser before upload.

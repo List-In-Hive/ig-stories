@@ -92,6 +92,14 @@ export function sweepUnusedAssets(at = new Date()) {
     }
     for (const version of query<{ data: string }>('SELECT data FROM story_versions'))
       snapshotAssetIds(JSON.parse(version.data)).forEach((value) => referenced.add(value));
+    // Finished AI videos stay while their story version exists (see lib/animate.ts).
+    for (const row of query<{ key: string; value: string }>(
+      "SELECT key,value FROM settings WHERE key LIKE 'animation:%'",
+    )) {
+      const assetId = (JSON.parse(row.value) as { assetId?: string }).assetId;
+      if (assetId && one('SELECT id FROM story_versions WHERE id=?', row.key.slice(10)))
+        referenced.add(assetId);
+    }
     // A newly generated snapshot may be between provider completion and its final save.
     for (const asset of query<{ assetId: string }>(
       'SELECT assetId FROM project_assets WHERE touchedAt>?',

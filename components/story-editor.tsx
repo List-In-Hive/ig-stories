@@ -28,6 +28,7 @@ import {
 import type { FontName, Layer, Layout, Project, Story, Version } from '@/lib/types';
 import { api, Button, Badge, Field, formatTime } from './ui';
 import SaveStories from './save-stories';
+import StoryVideo from './story-video';
 import type { Command } from './workspace';
 const LAYERS = [
   { key: 'headline', label: 'Headline' },
@@ -78,6 +79,7 @@ export default function StoryEditor({
   story,
   project,
   stock,
+  aiVideo = false,
   command,
   notify,
   onDirty,
@@ -86,6 +88,7 @@ export default function StoryEditor({
   story: Story;
   project?: Project;
   stock?: string | null;
+  aiVideo?: boolean;
   command: Command;
   notify: (message: string) => void;
   onDirty: (dirty: boolean) => void;
@@ -862,6 +865,12 @@ export default function StoryEditor({
               </a>
             </small>
           )}
+          <StoryVideo
+            versionId={base.id}
+            approved={approved && !dirty}
+            aiVideo={aiVideo}
+            notify={notify}
+          />
           {dirty && (
             <small className="muted center">
               Save your changes before generating or approving.

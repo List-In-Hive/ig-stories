@@ -11,8 +11,13 @@ export const localStorage: FileStorage = {
   put(bytes, mime, kind, width, height) {
     const assetId = id();
     const extension =
-      { 'image/svg+xml': 'svg', 'font/ttf': 'ttf', 'font/otf': 'otf', 'image/jpeg': 'jpg' }[mime] ||
-      'png';
+      {
+        'image/svg+xml': 'svg',
+        'font/ttf': 'ttf',
+        'font/otf': 'otf',
+        'image/jpeg': 'jpg',
+        'video/mp4': 'mp4',
+      }[mime] || 'png';
     const filename = `${assetId}.${extension}`;
     fs.writeFileSync(path.join(directory, filename), bytes);
     run(

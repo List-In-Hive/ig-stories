@@ -3217,3 +3217,58 @@ textarea {
   height: 78px;
   object-fit: cover;
 }
+.video-box {
+  width: 100%;
+  max-width: 460px;
+  display: grid;
+  gap: 10px;
+  margin-top: 6px;
+  padding: 14px;
+  border: 1px solid var(--line, #e3e0ea);
+  border-radius: 14px;
+}
+.video-box > strong {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+}
+.video-box small {
+  font-size: 12px;
+  color: var(--muted);
+}
+.motion-chips {
+  display: flex;
+  gap: 6px;
+}
+.motion-chips button {
+  flex: 1;
+  min-height: 40px;
+  border-radius: 999px;
+  border: 1px solid var(--line, #e3e0ea);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+}
+.motion-chips button.active {
+  background: var(--ink, #172420);
+  border-color: var(--ink, #172420);
+  color: #fff;
+}
+.ai-video {
+  display: grid;
+  gap: 8px;
+}
+.ai-video textarea {
+  width: 100%;
+  resize: vertical;
+}
+.video-box video {
+  width: 100%;
+  max-width: 270px;
+  justify-self: center;
+  aspect-ratio: 9 / 16;
+  border-radius: 12px;
+  background: #000;
+}

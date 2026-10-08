@@ -310,6 +310,7 @@ export default function Workspace() {
               story={story}
               project={state.projects.find((p) => p.id === story.projectId)}
               stock={state.settings.stock}
+              aiVideo={state.settings.aiVideo}
               command={command}
               notify={notify}
               onDirty={setDirty}

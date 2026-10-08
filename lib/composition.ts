@@ -184,7 +184,10 @@ function fontFaces(snapshot: Snapshot) {
   });
   return [...frozen, ...builtIn];
 }
-export function renderSvg(snapshot: Snapshot) {
+export type Part = 'background' | 'headline' | 'body' | 'logo';
+const allParts: Part[] = ['background', 'headline', 'body', 'logo'];
+// Videos animate each part on its own, so the renderer can draw any subset of the story.
+export function renderSvg(snapshot: Snapshot, parts: Part[] = allParts) {
   const css = fontFaces(snapshot)
     .map(
       (face) =>
@@ -194,7 +197,7 @@ export function renderSvg(snapshot: Snapshot) {
   const layers = (['headline', 'body'] as const)
     .map((key) => {
       const layer = snapshot.layout[key];
-      if (!layer.visible) return '';
+      if (!layer.visible || !parts.includes(key)) return '';
       const style = textStyle(key, layer);
       let lines: string[];
       try {
@@ -213,17 +216,17 @@ export function renderSvg(snapshot: Snapshot) {
     .join('');
   const logo = snapshot.layout.logo;
   let logoSvg = '';
-  if (logo.visible && snapshot.logoId) {
+  if (logo.visible && snapshot.logoId && parts.includes('logo')) {
     const asset = localStorage.read(snapshot.logoId);
     logoSvg = `<image href="${uri(snapshot.logoId)}" x="${logo.x}" y="${logo.y}" width="${logo.width}" height="${(logo.width * asset.height) / asset.width}"/>`;
   }
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920"><style>${css}</style><defs><filter id="shadow" x="-10%" y="-10%" width="120%" height="140%"><feDropShadow dx="0" dy="3" stdDeviation="6" flood-color="#000" flood-opacity="0.45"/></filter></defs><image href="${uri(snapshot.backgroundId)}" width="1080" height="1920"/>${logoSvg}${layers}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920"><style>${css}</style><defs><filter id="shadow" x="-10%" y="-10%" width="120%" height="140%"><feDropShadow dx="0" dy="3" stdDeviation="6" flood-color="#000" flood-opacity="0.45"/></filter></defs>${parts.includes('background') ? `<image href="${uri(snapshot.backgroundId)}" width="1080" height="1920"/>` : ''}${logoSvg}${layers}</svg>`;
 }
-export function renderPng(snapshot: Snapshot) {
+export function renderPng(snapshot: Snapshot, parts: Part[] = allParts) {
   const errors = validateComposition(snapshot);
   if (errors.length) throw new AppError(errors.join(' '));
   return Buffer.from(
-    new Resvg(renderSvg(snapshot), {
+    new Resvg(renderSvg(snapshot, parts), {
       font: {
         loadSystemFonts: false,
         fontFiles: fontFaces(snapshot).map((face) => face.file),
