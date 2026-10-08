@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { Upload, Check, Sparkles } from 'lucide-react';
+import { Upload, Check, Sparkles, X } from 'lucide-react';
 import type { BrandFont, FontName, Project } from '@/lib/types';
 import { PALETTE_ROLES, contrast, normalizePalette } from '@/lib/palette';
 import { api, Button, Field, Modal } from './ui';
@@ -25,6 +25,8 @@ const defaults = {
   generateAt: '08:00',
   webResearch: true,
   logoId: null as string | null,
+  photoIds: [] as string[],
+  stockPhotos: true,
   website: '',
   email: '',
   phone: '',
@@ -33,16 +35,20 @@ const defaults = {
 };
 export default function ProjectForm({
   project,
+  stock,
   onClose,
   onSave,
 }: {
   project?: Project;
+  stock?: string | null;
   onClose: () => void;
   onSave: (project: typeof defaults, projectId?: string) => Promise<void>;
 }) {
   const start = {
     ...defaults,
     ...project,
+    photoIds: project?.photoIds ?? [],
+    stockPhotos: project?.stockPhotos ?? true,
     colors: normalizePalette(project?.colors ?? defaults.colors),
   };
   const [form, setForm] = useState(start);
@@ -146,6 +152,28 @@ export default function ProjectForm({
       setFontUploading(false);
     }
   }
+  const [photoUploading, setPhotoUploading] = useState(0);
+  async function uploadPhotos(files: File[]) {
+    const room = 60 - form.photoIds.length;
+    if (files.length > room) setError(`Up to 60 brand photos. Added the first ${room}.`);
+    else setError('');
+    for (const file of files.slice(0, Math.max(0, room))) {
+      setPhotoUploading((n) => n + 1);
+      try {
+        const body = new FormData();
+        body.append('file', file);
+        body.append('kind', 'photo');
+        const response = await fetch('/api/assets', { method: 'POST', body });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error);
+        setForm((f) => ({ ...f, photoIds: [...f.photoIds, data.id] }));
+      } catch (e) {
+        setError((e as Error).message);
+      } finally {
+        setPhotoUploading((n) => n - 1);
+      }
+    }
+  }
   async function upload(file?: File) {
     if (!file) return;
     setUploading(true);
@@ -212,7 +240,7 @@ export default function ProjectForm({
     >
       <form onSubmit={submit}>
         <div className="tabs">
-          {['Brief', 'Branding', 'Guidelines', 'Contact'].map((t) => (
+          {['Brief', 'Branding', 'Photos', 'Guidelines', 'Contact'].map((t) => (
             <button
               type="button"
               className={tab === t ? 'active' : ''}
@@ -404,7 +432,7 @@ export default function ProjectForm({
               </Field>
               <Field
                 label="Brand palette"
-                hint="Background and accent guide the artwork; text and accent color the story copy and call to action. Extra is optional."
+                hint="Background and accent guide the artwork; text colors the story copy. Extra is optional."
               >
                 <div className="color-fields">
                   {form.colors.map((color, i) => (
@@ -549,6 +577,64 @@ export default function ProjectForm({
                   onChange={(e) => setStyle('visualDirection', e.target.value)}
                 />
               </Field>
+            </>
+          )}
+          {tab === 'Photos' && (
+            <>
+              <Field
+                label="Brand photos"
+                group
+                hint="Your own photos (products, place, team, work). About half of each day's stories use a real photo; these come first. JPEG, PNG, or WebP, up to 60."
+              >
+                <div className="photo-library">
+                  {form.photoIds.map((photoId) => (
+                    <div key={photoId} className="photo-thumb">
+                      <img alt="Brand photo" src={`/api/assets/${photoId}`} />
+                      <button
+                        type="button"
+                        aria-label="Remove photo"
+                        onClick={() =>
+                          update(
+                            'photoIds',
+                            form.photoIds.filter((p) => p !== photoId),
+                          )
+                        }
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ))}
+                  <label className="photo-add">
+                    <Upload size={20} />
+                    <span>{photoUploading ? 'Uploading…' : 'Add photos'}</span>
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/png,image/jpeg,image/webp"
+                      aria-label="Add brand photos"
+                      onChange={(e) => {
+                        void uploadPhotos([...(e.target.files ?? [])]);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                </div>
+              </Field>
+              <label className="switch-row">
+                <input
+                  type="checkbox"
+                  checked={form.stockPhotos}
+                  onChange={(e) => update('stockPhotos', e.target.checked)}
+                />
+                <span>
+                  <strong>Use free stock photos</strong>
+                  <small>
+                    {stock
+                      ? `Real photos from ${stock} matched to each story, mixed with your photos and AI artwork.`
+                      : 'Add PIXABAY_API_KEY to .env (free at pixabay.com/api/docs) to turn this on.'}
+                  </small>
+                </span>
+              </label>
             </>
           )}
           {tab === 'Guidelines' && (

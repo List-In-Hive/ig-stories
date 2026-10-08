@@ -27,6 +27,9 @@ export type Project = {
   generateAt: string;
   webResearch: boolean;
   logoId: string | null;
+  // The brand's own photos used as story backgrounds, and whether Pexels stock may be used.
+  photoIds?: string[];
+  stockPhotos?: boolean;
   website: string;
   email: string;
   phone: string;
@@ -67,7 +70,12 @@ export type Script = {
   // The photo style and text position this story was assigned, so the next days can vary them.
   look?: string;
   placement?: Placement;
+  // Where the background comes from; AI when missing. Stock photos keep their credit.
+  source?: PhotoSource;
+  photoSearch?: string;
+  credit?: { name: string; url: string; photoUrl: string };
 };
+export type PhotoSource = 'ai' | 'stock' | 'library';
 export type Placement = 'top' | 'bottom';
 export type Snapshot = {
   script: Script;
@@ -148,6 +156,8 @@ export type AppState = {
     automationEnabled: boolean;
     timeZone: string;
     exportFormat: 'jpeg' | 'png';
+    // The stock photo service in use, or null when no key is configured.
+    stock: string | null;
   };
   worker: { online: boolean; heartbeat: string | null; nextRun: string };
   today: string;

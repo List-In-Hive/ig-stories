@@ -48,6 +48,10 @@ Written feedback in the editor is applied by Claude: text feedback rewrites the 
 
 Engagement stories (polls, questions, DM prompts) are only produced for projects with "Allow questions & response prompts" turned on, and the server enforces this on every path.
 
+## Story backgrounds
+
+Each project can hold up to 60 of the brand's own photos (project form, **Photos** tab) and can use free stock photos from Pixabay when `PIXABAY_API_KEY` is set (`PEXELS_API_KEY` also works). When either is available, about half of each day's stories use a real photo, brand photos first and least recently used, and the rest stay AI artwork; the pattern shifts daily. Claude writes a short stock search for every story, and stock photos already used by the brand are skipped. If a real photo cannot be fetched, the story falls back to AI artwork. In the editor, **Find stock photo** and **Brand photos** swap the background while keeping the text and design, and stock photos show the photographer's credit.
+
 ## Adding an account
 
 The project form's **Quick start with AI** takes the Instagram handle, the website, and up to 20 photos the brand has posted. Two models work in parallel: ChatGPT (`OPENAI_VISION_MODEL`, default `OPENAI_REVIEW_MODEL`) studies the photos for visual direction, palette, font, recurring themes, and any facts written on them, while Claude reads the website (with web search when it is thin) for the description, services, audience, facts, tone, and contacts. The photos decide the look and the research decides the words; nothing is saved until the admin reviews the form. Photos are shrunk to 1024 px in the browser before upload.

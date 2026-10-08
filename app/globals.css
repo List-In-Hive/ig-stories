@@ -1498,6 +1498,108 @@ textarea {
   box-shadow: 0 1px 4px #4c347011;
   font-weight: 700;
 }
+.photo-library {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: 10px;
+}
+.photo-thumb,
+.photo-add {
+  position: relative;
+  aspect-ratio: 9/16;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.photo-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.photo-thumb button {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #000000a6;
+  color: #fff;
+}
+.photo-add {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px dashed #bdbdf3;
+  background: #f5f5ff;
+  color: #5d5d72;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.photo-add input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.photo-picker {
+  width: 100%;
+  max-width: 460px;
+  display: grid;
+  gap: 10px;
+  margin-top: 6px;
+}
+.photo-picker .picker-tabs {
+  display: flex;
+  gap: 6px;
+}
+.photo-picker .picker-search {
+  display: flex;
+  gap: 8px;
+}
+.photo-picker .picker-search input {
+  flex: 1;
+}
+.photo-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.photo-grid button {
+  position: relative;
+  aspect-ratio: 9/16;
+  border-radius: 6px;
+  overflow: hidden;
+  padding: 0;
+  border: 2px solid transparent;
+}
+.photo-grid button:hover,
+.photo-grid button:focus-visible {
+  border-color: var(--purple);
+}
+.photo-grid img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.photo-grid button:disabled {
+  opacity: 0.5;
+}
+.photo-credit {
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+}
+.photo-credit a {
+  color: inherit;
+  text-decoration: underline;
+}
 .logo-upload {
   position: relative;
   display: flex;

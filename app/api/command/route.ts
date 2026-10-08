@@ -16,6 +16,8 @@ import {
   approve,
   versions,
   feedbackFor,
+  findStock,
+  swapPhoto,
 } from '@/lib/services';
 import { setSetting } from '@/lib/db';
 import { deleteProject } from '@/lib/lifecycle';
@@ -112,6 +114,20 @@ export async function POST(request: Request) {
           z.string().parse(body.storyId),
           z.string().parse(body.expected),
           body.layout,
+          user.id,
+        );
+        break;
+      case 'stockSearch':
+        result = await findStock(z.string().max(100).parse(body.query));
+        break;
+      case 'usePhoto':
+        result = await swapPhoto(
+          z.string().parse(body.storyId),
+          z.string().parse(body.expected),
+          z
+            .object({ stock: z.string().max(40).optional(), library: z.string().optional() })
+            .refine((c) => !!c.stock !== !!c.library, 'Choose one photo.')
+            .parse(body.choice),
           user.id,
         );
         break;

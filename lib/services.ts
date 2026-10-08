@@ -22,11 +22,20 @@ import {
   type PlanContext,
   claudeScripts,
   openAIImages,
+  finishPhoto,
   missingLiveKeys,
   CLAUDE_MODEL,
   OPENAI_IMAGE_MODEL,
 } from './ai';
 import { localStorage, readFamily } from './storage';
+import {
+  downloadStock,
+  getStock,
+  searchStock,
+  stockConfigured,
+  stockName,
+  type StockPhoto,
+} from './stock';
 import { DEFAULT_TEXT, normalizePalette } from './palette';
 import { defaultLayout, validateComposition, snapshotFonts } from './composition';
 import type {
@@ -37,6 +46,7 @@ import type {
   Run,
   Layout,
   Script,
+  PhotoSource,
   Snapshot,
   Story,
   User,
@@ -93,6 +103,8 @@ export const projectSchema = z.object({
     .regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Use a 24-hour time such as 08:00.')
     .default(DEFAULT_GENERATE_AT),
   logoId: z.string().nullable().default(null),
+  photoIds: z.array(z.string()).max(60, 'Keep up to 60 brand photos.').default([]),
+  stockPhotos: z.boolean().default(true),
   website: z
     .string()
     .refine((v) => !v || /^https?:\/\//.test(v), 'Use a full website URL.')
@@ -178,6 +190,11 @@ export function saveProject(input: unknown, projectId?: string) {
       const asset = one<{ kind: string }>('SELECT kind FROM assets WHERE id=?', parsed.logoId);
       if (!asset || asset.kind !== 'logo') throw new AppError('Choose a valid uploaded logo.');
     }
+    for (const photoId of parsed.photoIds) {
+      const asset = one<{ kind: string }>('SELECT kind FROM assets WHERE id=?', photoId);
+      if (!asset || asset.kind !== 'brand-photo')
+        throw new AppError('Upload the brand photos again.');
+    }
     for (const file of [parsed.brandFont?.regular, parsed.brandFont?.bold]) {
       if (!file) continue;
       const asset = one<{ kind: string }>('SELECT kind FROM assets WHERE id=?', file.id);
@@ -213,6 +230,7 @@ export function saveProject(input: unknown, projectId?: string) {
       parsed.logoId,
       parsed.brandFont?.regular.id ?? null,
       parsed.brandFont?.bold?.id ?? null,
+      ...parsed.photoIds,
     ]);
     if (previous && previous.allowEngagement !== parsed.allowEngagement)
       run(
@@ -399,9 +417,9 @@ export async function makeSnapshot(
   direction?: string,
 ) {
   const recent = recentTopics(project.id);
-  const script = manual || (await generateScript(project, slot, seed, recent, direction));
-  assertEngagementAllowed(project, script);
-  const image = await imageProvider().generate(project, script, seed);
+  const written = manual || (await generateScript(project, slot, seed, recent, direction));
+  assertEngagementAllowed(project, written);
+  const { image, script } = await paint(project, written, seed);
   return transaction(() => {
     const latestProject = getProject(project.id);
     if (latestProject.updatedAt !== project.updatedAt)
@@ -425,6 +443,111 @@ export async function makeSnapshot(
     registerProjectAssets(project.id, snapshotAssetIds(snapshot));
     return snapshot;
   });
+}
+// Real photos make a feed feel alive, so half of each day's stories use the brand's own photos
+// or Pexels stock when they are available; the rest stay AI artwork. The pattern shifts daily.
+export function assignSources(project: Project, scripts: Script[], day: string) {
+  const real: PhotoSource[] = [
+    ...((project.photoIds ?? []).length ? (['library'] as const) : []),
+    ...(project.stockPhotos !== false && stockConfigured() ? (['stock'] as const) : []),
+  ];
+  if (!real.length) return scripts;
+  const shift = Number(day.slice(-2)) || 0;
+  let used = 0;
+  return scripts.map((script, i) => {
+    if ((i + shift) % 2 === 1) return { ...script, source: 'ai' as const };
+    return { ...script, source: real[(used++ + shift) % real.length] };
+  });
+}
+// Remembers which photos a brand used, newest first, so the next ones are different.
+function usedPhotos(kind: 'stock' | 'library', projectId: string) {
+  return JSON.parse(setting(`photos:${kind}:${projectId}`, '[]')) as string[];
+}
+function markUsed(kind: 'stock' | 'library', projectId: string, photoId: string) {
+  setSetting(
+    `photos:${kind}:${projectId}`,
+    JSON.stringify(
+      [photoId, ...usedPhotos(kind, projectId).filter((p) => p !== photoId)].slice(0, 300),
+    ),
+  );
+}
+function stockCredit(photo: StockPhoto) {
+  return { name: photo.photographer, url: photo.photographerUrl, photoUrl: photo.url };
+}
+async function stockBackground(
+  project: Project,
+  script: Script,
+  query: string,
+  photo?: StockPhoto,
+) {
+  if (!photo) {
+    const used = usedPhotos('stock', project.id);
+    const results = await searchStock(query);
+    photo = results.find((p) => !used.includes(String(p.id))) ?? results[0];
+  }
+  if (!photo) throw new AppError(`No stock photos found for “${query}”.`);
+  const next = { ...script, source: 'stock' as const, credit: stockCredit(photo) };
+  const image = await finishPhoto(await downloadStock(photo), project, next);
+  markUsed('stock', project.id, String(photo.id));
+  return { image, script: next };
+}
+async function libraryBackground(project: Project, script: Script, photoId?: string) {
+  const photos = project.photoIds ?? [];
+  if (!photoId) {
+    const used = usedPhotos('library', project.id);
+    // The least recently used photo: never used first, then the oldest use.
+    photoId = [...photos].sort((a, b) => {
+      const ia = used.indexOf(a),
+        ib = used.indexOf(b);
+      return (ia === -1 ? Infinity : ia) > (ib === -1 ? Infinity : ib) ? -1 : 1;
+    })[0];
+  }
+  if (!photoId || !photos.includes(photoId)) throw new AppError('Choose one of the brand photos.');
+  const next: Script = { ...script, source: 'library' };
+  delete next.credit;
+  const image = await finishPhoto(localStorage.read(photoId).bytes, project, next);
+  markUsed('library', project.id, photoId);
+  return { image, script: next };
+}
+// Paints a story background from its assigned source, falling back to AI artwork when a real
+// photo is unavailable so a run never fails over a missing stock result.
+async function paint(project: Project, script: Script, seed: number, query?: string) {
+  try {
+    if (script.source === 'library') return await libraryBackground(project, script);
+    if (script.source === 'stock' && stockConfigured())
+      return await stockBackground(project, script, query || script.photoSearch || script.topic);
+  } catch (error) {
+    console.warn(`Real photo unavailable, using AI artwork: ${(error as Error).message}`);
+  }
+  const next: Script = { ...script };
+  if (next.source) next.source = 'ai';
+  delete next.credit;
+  return { image: await imageProvider().generate(project, next, seed), script: next };
+}
+export const findStock = (query: string) => searchStock(query);
+// Swaps a story's background for a chosen stock photo or brand photo; the text is kept.
+export async function swapPhoto(
+  storyId: string,
+  expected: string,
+  choice: { stock?: string; library?: string },
+  userId: string,
+) {
+  const story = checkVersion(storyId, expected);
+  const project = getProject(story.projectId);
+  const current = story.version.data;
+  const painted = choice.stock
+    ? await stockBackground(project, current.script, '', await getStock(choice.stock))
+    : await libraryBackground(project, current.script, choice.library);
+  return appendVersion(
+    storyId,
+    {
+      ...structuredClone(current),
+      script: painted.script,
+      backgroundId: storeProjectBackground(story.projectId, painted.image),
+    },
+    userId,
+    expected,
+  );
 }
 function storeProjectBackground(projectId: string, image: { bytes: Buffer; mime: string }) {
   return transaction(() => {
@@ -620,7 +743,7 @@ async function plannedScript(runId: string, slot: number, project: Project) {
   );
   if (!row) {
     const recent = recentTopics(project.id);
-    const planned: Script[] = [];
+    let planned: Script[] = [];
     if (liveMode())
       planned.push(...(await claudeScripts.plan(project, 4, recent, planContext(project))));
     else
@@ -629,8 +752,9 @@ async function plannedScript(runId: string, slot: number, project: Project) {
           ...recent,
           ...planned.map((s) => s.topic),
         ]);
-        planned.push(script);
+        planned.push({ ...script, photoSearch: script.topic });
       }
+    planned = assignSources(project, planned, businessDate(new Date()));
     transaction(() => {
       planned.forEach((script, i) =>
         run(
@@ -784,6 +908,15 @@ export async function reviseStory(
           headline: { ...current.layout.headline, text: script.headline },
           body: { ...current.layout.body, text: script.body },
         }),
+      };
+    } else if (current.script.source === 'stock' || current.script.source === 'library') {
+      // A real-photo story gets another real photo: the next stock match or brand photo.
+      const painted = await paint(getProject(story.projectId), current.script, seed, prompt);
+      snapshot = {
+        ...structuredClone(current),
+        script: painted.script,
+        backgroundId: storeProjectBackground(story.projectId, painted.image),
+        seed,
       };
     } else {
       const visual =
@@ -1009,6 +1142,7 @@ export function state(user: User): AppState {
       timeZone: timeZone(),
       exportFormat:
         setting('exportFormat', process.env.EXPORT_FORMAT || 'jpeg') === 'png' ? 'png' : 'jpeg',
+      stock: stockConfigured() ? stockName() : null,
     },
     worker: {
       online: !!heartbeat && Date.now() - Date.parse(heartbeat) < 45000,

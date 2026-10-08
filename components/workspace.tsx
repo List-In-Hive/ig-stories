@@ -308,6 +308,8 @@ export default function Workspace() {
             <StoryEditor
               key={story.id}
               story={story}
+              project={state.projects.find((p) => p.id === story.projectId)}
+              stock={state.settings.stock}
               command={command}
               notify={notify}
               onDirty={setDirty}
@@ -398,6 +400,7 @@ export default function Workspace() {
       {projectForm && (
         <ProjectForm
           project={projectForm === 'new' ? undefined : projectForm}
+          stock={state.settings.stock}
           onClose={() => setProjectForm(null)}
           onSave={async (p, projectId) => {
             const saved = await command<Project>('saveProject', { project: p, projectId });

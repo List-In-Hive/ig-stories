@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, type MouseEvent } from 'react';
+import { useState, useEffect, type FormEvent, type MouseEvent } from 'react';
 import {
   ArrowLeft,
   Check,
@@ -22,8 +22,10 @@ import {
   CaseUpper,
   Layers,
   Plus,
+  Search,
+  Image as ImageIcon,
 } from 'lucide-react';
-import type { FontName, Layer, Layout, Story, Version } from '@/lib/types';
+import type { FontName, Layer, Layout, Project, Story, Version } from '@/lib/types';
 import { api, Button, Badge, Field, formatTime } from './ui';
 import SaveStories from './save-stories';
 import type { Command } from './workspace';
@@ -71,14 +73,19 @@ type Feedback = {
   reviewer: string;
   createdAt: string;
 };
+type StockPhoto = { id: string; thumb: string; alt: string; photographer: string };
 export default function StoryEditor({
   story,
+  project,
+  stock,
   command,
   notify,
   onDirty,
   onBack,
 }: {
   story: Story;
+  project?: Project;
+  stock?: string | null;
   command: Command;
   notify: (message: string) => void;
   onDirty: (dirty: boolean) => void;
@@ -97,6 +104,10 @@ export default function StoryEditor({
   const [target, setTarget] = useState('text');
   const [safeArea, setSafeArea] = useState(false);
   const [prompt, setPrompt] = useState('');
+  const [picker, setPicker] = useState<'' | 'stock' | 'library'>('');
+  const [query, setQuery] = useState(story.version.data.script.photoSearch || '');
+  const [results, setResults] = useState<StockPhoto[]>([]);
+  const library = project?.photoIds ?? [];
   const dirty = JSON.stringify(layout) !== JSON.stringify(base.data.layout);
   const conflict = story.latestVersionId !== base.id;
   useEffect(() => {
@@ -190,6 +201,33 @@ export default function StoryEditor({
           idea: 'A new story, text and image, was saved as a draft.',
         }[kind],
       );
+    } catch {
+      // The shared command handler already displayed the server error.
+    } finally {
+      setBusy('');
+    }
+  }
+  async function searchPhotos(e?: FormEvent) {
+    e?.preventDefault();
+    setBusy('search');
+    try {
+      setResults(
+        await api<StockPhoto[]>('/api/command', {
+          action: 'stockSearch',
+          query: query || base.data.script.topic,
+        }),
+      );
+    } catch (error) {
+      notify((error as Error).message);
+    } finally {
+      setBusy('');
+    }
+  }
+  async function choosePhoto(choice: { stock?: string; library?: string }) {
+    setBusy('photo');
+    try {
+      accept(await command<Version>('usePhoto', { storyId: story.id, expected: base.id, choice }));
+      notify('Photo swapped. Your text and design were kept.');
     } catch {
       // The shared command handler already displayed the server error.
     } finally {
@@ -741,6 +779,89 @@ export default function StoryEditor({
                 : 'Leave it empty for a fresh take. Your design (fonts, colors, positions) is kept.'}
             </small>
           </div>
+          {(stock || library.length > 0) && (
+            <div className="photo-picker">
+              <div className="picker-tabs">
+                {stock && (
+                  <Button
+                    variant={picker === 'stock' ? 'primary' : 'secondary'}
+
+                    disabled={blocked}
+                    onClick={() => {
+                      setPicker(picker === 'stock' ? '' : 'stock');
+                      if (!results.length) void searchPhotos();
+                    }}
+                  >
+                    <Search size={14} />
+                    Find stock photo
+                  </Button>
+                )}
+                {library.length > 0 && (
+                  <Button
+                    variant={picker === 'library' ? 'primary' : 'secondary'}
+
+                    disabled={blocked}
+                    onClick={() => setPicker(picker === 'library' ? '' : 'library')}
+                  >
+                    <ImageIcon size={14} />
+                    Brand photos
+                  </Button>
+                )}
+              </div>
+              {picker === 'stock' && (
+                <>
+                  <form className="picker-search" onSubmit={searchPhotos}>
+                    <input
+                      aria-label="Search stock photos"
+                      value={query}
+                      maxLength={100}
+                      placeholder="e.g. latte art close up"
+                      onChange={(e) => setQuery(e.target.value)}
+                    />
+                    <Button variant="secondary" busy={busy === 'search'}>
+                      Search
+                    </Button>
+                  </form>
+                  <div className="photo-grid">
+                    {results.map((photo) => (
+                      <button
+                        key={photo.id}
+                        disabled={!!busy || blocked}
+                        title={`${photo.alt} · ${photo.photographer}`}
+                        onClick={() => void choosePhoto({ stock: photo.id })}
+                      >
+                        <img alt={photo.alt} src={photo.thumb} loading="lazy" />
+                      </button>
+                    ))}
+                  </div>
+                  <small className="photo-credit">
+                    Free photos from {stock}. Tap one to use it.
+                  </small>
+                </>
+              )}
+              {picker === 'library' && (
+                <div className="photo-grid">
+                  {library.map((photoId) => (
+                    <button
+                      key={photoId}
+                      disabled={!!busy || blocked}
+                      onClick={() => void choosePhoto({ library: photoId })}
+                    >
+                      <img alt="Brand photo" src={`/api/assets/${photoId}`} loading="lazy" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {base.data.script.credit && (
+            <small className="photo-credit">
+              Photo by{' '}
+              <a href={base.data.script.credit.photoUrl} target="_blank" rel="noreferrer">
+                {base.data.script.credit.name}
+              </a>
+            </small>
+          )}
           {dirty && (
             <small className="muted center">
               Save your changes before generating or approving.

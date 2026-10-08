@@ -47,6 +47,7 @@ const storySchema = z.object({
   headline: z.string(),
   body: z.string(),
   visual: z.string(),
+  photoSearch: z.string(),
   sources: z.array(z.string()),
 });
 const planSchema = z.object({ stories: z.array(storySchema) });
@@ -70,6 +71,7 @@ Rules that always apply:
 - Keep copy short so it fits the frame: headline at most 6 words, body at most 160 characters. There is no separate call-to-action or contact line; any invitation belongs in the body.
 - Write in the language the content rules ask for; otherwise English.
 - "visual" is a prompt for an image model: describe one specific scene in the brand's visual direction and palette, written in the photo style and text position assigned to that story. It must contain no text, letters, numbers, logos, or people's faces. Keep the part of the frame where the text sits calm and uncluttered so overlaid text stays readable.
+- "photoSearch" is a 2 to 5 word stock photo search for a real photo that would suit this story (for example "latte art close up"); plain words, no brand names.
 - The brand's visual direction sets the mood, palette, and world of subjects; the assigned photo style decides the shot. Do not fall back to the same signature shot every time.
 - Variety matters: a follower sees these stories day after day. Each story needs its own subject, setting, camera distance and angle, and dominant color; never reuse a scene, setting, or composition from the recent image prompts.`;
 
@@ -151,6 +153,7 @@ function toScript(project: Project, story: z.infer<typeof storySchema>, urls: Se
     headline: story.headline,
     body: story.body,
     visual: story.visual,
+    photoSearch: (story.photoSearch || '').slice(0, 100),
     // Keep only sources that web search really returned during this request.
     sources: story.sources.filter((url) => urls.has(url)).slice(0, 5),
     ...(story.kind !== 'standard' ? { kind: story.kind } : {}),
@@ -401,6 +404,17 @@ function storyInk(project: Project) {
   const colors = palette(project.colors);
   return luminance(readable(colors.text, colors.background)) > 0.4 ? 'light' : 'dark';
 }
+// Any photo, generated, stock or the brand's own, is cropped to the story frame and washed
+// behind the text so the copy stays readable.
+export async function finishPhoto(bytes: Buffer, project: Project, script: Script) {
+  const out = await sharp(bytes, { limitInputPixels: 60_000_000 })
+    .rotate()
+    .resize(1080, 1920, { fit: 'cover', position: 'attention' })
+    .composite([{ input: wash(script.placement ?? 'top', storyInk(project) === 'dark') }])
+    .png()
+    .toBuffer();
+  return { bytes: out, mime: 'image/png' };
+}
 export const openAIImages: ImageProvider = {
   async generate(project, script) {
     assertLiveConfigured();
@@ -413,12 +427,7 @@ export const openAIImages: ImageProvider = {
     });
     const b64 = result.data?.[0]?.b64_json;
     if (!b64) throw new AppError('OpenAI returned no image. Retry the generation.');
-    const bytes = await sharp(Buffer.from(b64, 'base64'))
-      .resize(1080, 1920, { fit: 'cover' })
-      .composite([{ input: wash(script.placement ?? 'top', storyInk(project) === 'dark') }])
-      .png()
-      .toBuffer();
-    return { bytes, mime: 'image/png' };
+    return finishPhoto(Buffer.from(b64, 'base64'), project, script);
   },
 };
 
