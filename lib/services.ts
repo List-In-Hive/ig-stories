@@ -351,6 +351,26 @@ function planContext(project: Project, at = new Date()): PlanContext {
       .slice(0, 8)
       .map((s) => `${s.version.data.script.topic}: ${s.version.data.script.headline}`),
     feedback: JSON.parse(setting(`taste:feedback:${project.id}`, '[]')),
+    ...recentLooks(project.id),
+  };
+}
+// About a week of this brand's stories, newest first, so new drafts can avoid repeating them.
+const RECENT_LIMIT = 28;
+function recentScripts(projectId: string) {
+  return listStories()
+    .filter((s) => s.projectId === projectId)
+    .slice(0, RECENT_LIMIT)
+    .map((s) => s.version.data.script);
+}
+function recentTopics(projectId: string) {
+  return recentScripts(projectId).map((s) => s.topic);
+}
+function recentLooks(projectId: string) {
+  const scripts = recentScripts(projectId);
+  return {
+    recentVisuals: scripts.slice(0, 12).map((s) => s.visual.slice(0, 160)),
+    recentLooks: scripts.slice(0, 8).flatMap((s) => (s.look ? [s.look] : [])),
+    recentPlacements: scripts.flatMap((s) => (s.placement ? [s.placement] : [])).slice(0, 4),
   };
 }
 async function generateScript(
@@ -381,10 +401,7 @@ export async function makeSnapshot(
   manual?: Script,
   direction?: string,
 ) {
-  const recent = listStories()
-    .filter((s) => s.projectId === project.id)
-    .slice(0, 12)
-    .map((s) => s.version.data.script.topic);
+  const recent = recentTopics(project.id);
   const script = manual || (await generateScript(project, slot, seed, recent, direction));
   assertEngagementAllowed(project, script);
   const image = await imageProvider().generate(project, script, seed);
@@ -605,10 +622,7 @@ async function plannedScript(runId: string, slot: number, project: Project) {
     slot,
   );
   if (!row) {
-    const recent = listStories()
-      .filter((s) => s.projectId === project.id)
-      .slice(0, 10)
-      .map((s) => s.version.data.script.topic);
+    const recent = recentTopics(project.id);
     const planned: Script[] = [];
     if (liveMode())
       planned.push(...(await claudeScripts.plan(project, 4, recent, planContext(project))));

@@ -108,6 +108,56 @@ test('live mode plans four distinct Claude scripts per run and paints OpenAI bac
     ).metadata();
     assert.deepEqual([bg.width, bg.height, bg.format], [1080, 1920, 'png']);
   }
+  const scripts = stories
+    .sort((a, b) => (a.slot ?? 0) - (b.slot ?? 0))
+    .map((s) => s.version.data.script);
+  assert.equal(new Set(scripts.map((s) => s.look)).size, 4, 'each story gets its own photo style');
+  assert.deepEqual(
+    scripts.map((s) => s.placement),
+    ['top', 'bottom', 'top', 'bottom'],
+  );
+  assert.equal(requests[0].prompt.match(/Photo style:/g)?.length, 4);
+  const bottom = stories.find((s) => s.version.data.script.placement === 'bottom')!;
+  assert.ok(bottom.version.data.layout.headline.y > 900, 'bottom stories place text low');
+});
+
+test('the next plan avoids recent photo styles and scenes, and continues the text rhythm', async () => {
+  const first = service.listStories().filter((s) => s.projectId === project.id)[0];
+  requests.length = 0;
+  replies = [
+    { stories: ['Fresh angle', 'New corner', 'Another day', 'Last one'].map((t) => story(t)) },
+  ];
+  const runId = service.enqueueRun(project.id, 'manual', new Date(), 'live-run-variety');
+  for (let i = 0; i < 4; i++) await service.processJob(service.claimJob()!);
+  const prompt = requests[0].prompt;
+  assert.match(prompt, /Recent image prompts/);
+  assert.ok(prompt.includes(first.version.data.script.visual.slice(0, 40)));
+  const before = new Set(
+    service
+      .listStories()
+      .filter((s) => s.projectId === project.id && s.runId !== runId)
+      .slice(0, 8)
+      .map((s) => s.version.data.script.look),
+  );
+  const next = service.listStories().filter((s) => s.runId === runId);
+  for (const s of next) assert.ok(!before.has(s.version.data.script.look), 'a fresh photo style');
+});
+
+test('the text wash is dark for brands with light text, so dark photos stay dark', async () => {
+  const dark = await sharp({
+    create: { width: 1080, height: 1920, channels: 3, background: '#0e0e14' },
+  })
+    .composite([{ input: ai.wash('top', false) }])
+    .raw()
+    .toBuffer();
+  const light = await sharp({
+    create: { width: 1080, height: 1920, channels: 3, background: '#0e0e14' },
+  })
+    .composite([{ input: ai.wash('top', true) }])
+    .raw()
+    .toBuffer();
+  assert.ok(dark[0] < 20, 'a dark brand keeps its dark backdrop');
+  assert.ok(light[0] > 100, 'a light wash brightens behind dark text');
 });
 
 test('live scripts that break the engagement rule are retried with the reason', async () => {

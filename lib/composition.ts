@@ -115,9 +115,11 @@ export function defaultLayout(project: Project, script: Script): Layout {
     align: 'left',
     visible: !!text,
   });
+  // Stories alternate between text at the top and text near the bottom, above the CTA.
+  const bottom = script.placement === 'bottom';
   return {
-    headline: layer(script.headline, 340, 88),
-    body: layer(script.body, 670, 37),
+    headline: layer(script.headline, bottom ? 1040 : 340, 88),
+    body: layer(script.body, bottom ? 1400 : 670, 37),
     cta: layer(
       script.cta,
       1650,

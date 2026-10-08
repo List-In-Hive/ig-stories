@@ -2,12 +2,12 @@ import Anthropic from '@anthropic-ai/sdk';
 import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
 import OpenAI from 'openai';
 import { zodTextFormat } from 'openai/helpers/zod';
-import { PALETTE_ROLES, describePalette } from './palette';
+import { PALETTE_ROLES, describePalette, luminance, palette, readable } from './palette';
 import sharp from 'sharp';
 import { z } from 'zod';
 import { AppError } from './errors';
 import { assertEngagementAllowed } from './engagement';
-import type { ImageProvider, Project, Script } from './types';
+import type { ImageProvider, Placement, Project, Script } from './types';
 
 // Live providers: Claude researches and writes story scripts and applies written feedback,
 // ChatGPT reviews the drafts, and OpenAI paints the background artwork. All are server-only.
@@ -70,7 +70,9 @@ Rules that always apply:
 - Respect the brand's content rules and never touch a prohibited topic.
 - Keep copy short so it fits the frame: headline at most 6 words, body at most 160 characters, CTA at most 32 characters.
 - Write in the language the content rules ask for; otherwise English.
-- "visual" is a prompt for an image model: describe a photographic or illustrated scene in the brand's visual direction and palette. It must contain no text, letters, numbers, logos, or people's faces, and should keep the upper two thirds calm and uncluttered so overlaid text stays readable.`;
+- "visual" is a prompt for an image model: describe one specific scene in the brand's visual direction and palette, written in the photo style and text position assigned to that story. It must contain no text, letters, numbers, logos, or people's faces. Keep the part of the frame where the text sits calm and uncluttered so overlaid text stays readable.
+- The brand's visual direction sets the mood, palette, and world of subjects; the assigned photo style decides the shot. Do not fall back to the same signature shot every time.
+- Variety matters: a follower sees these stories day after day. Each story needs its own subject, setting, camera distance and angle, and dominant color; never reuse a scene, setting, or composition from the recent image prompts.`;
 
 const webSearch = {
   type: 'web_search_20260209' as const,
@@ -166,17 +168,68 @@ export type PlanContext = {
   feedback: string[];
   // An admin's own prompt for this one story, from the editor.
   direction?: string;
+  // What the brand's recent stories already used, so new ones can look different.
+  recentVisuals?: string[];
+  recentLooks?: string[];
+  recentPlacements?: Placement[];
 };
+// Photo styles rotated across stories so a brand's feed does not repeat one composition.
+export const LOOKS = [
+  'Macro close-up of a texture or small detail, shallow depth of field',
+  'Flat lay shot from directly above, objects arranged on a surface',
+  'Wide establishing shot of a place, lots of environment and air',
+  'Hands in action doing the work or using the product, cropped at the wrists',
+  'Single hero object on a bold solid-color backdrop, studio light',
+  'Clean graphic illustration with simple shapes, flat vector style',
+  'Abstract composition of shapes, light and gradients in the brand colors',
+  'Candid lifestyle moment with people seen from behind or far away',
+  'Low-key moody shot with dramatic side light and deep shadows',
+  'Bright outdoor daylight scene in the local neighborhood or street',
+  'Playful 3D render or paper-craft style scene',
+  'Minimal still life with one or two objects and generous negative space',
+];
+// Picks looks the brand has not used recently, starting from a different spot each day.
+export function pickLooks(count: number, recent: string[], day: string) {
+  const offset = [...day].reduce((sum, c) => sum + c.charCodeAt(0), 0) % LOOKS.length;
+  const rotated = [...LOOKS.slice(offset), ...LOOKS.slice(0, offset)];
+  const fresh = rotated.filter((look) => !recent.includes(look));
+  return [...fresh, ...rotated].slice(0, count);
+}
+// Alternates where the text sits, continuing from the brand's most recent story.
+export function pickPlacements(count: number, recent: Placement[]): Placement[] {
+  const start: Placement = recent[0] === 'top' ? 'bottom' : 'top';
+  return Array.from({ length: count }, (_, i) =>
+    i % 2 === 0 ? start : start === 'top' ? 'bottom' : 'top',
+  );
+}
+const placementGuide = (placement: Placement) =>
+  placement === 'top'
+    ? 'text at the top: keep the upper 45% calm and simple, put the main subject in the lower half'
+    : 'text at the bottom: keep the lower 50% calm and simple, put the main subject in the upper half';
+function assignments(count: number, context: PlanContext) {
+  const looks = pickLooks(count, context.recentLooks ?? [], context.today);
+  const placements = pickPlacements(count, context.recentPlacements ?? []);
+  return looks.map((look, i) => ({ look, placement: placements[i] }));
+}
 const list = (items: string[]) => (items.length ? items.map((i) => `- ${i}`).join('\n') : 'none');
-function planPrompt(project: Project, count: number, recent: string[], context: PlanContext) {
+function planPrompt(
+  project: Project,
+  count: number,
+  recent: string[],
+  context: PlanContext,
+  plan: { look: string; placement: Placement }[],
+) {
   const research = project.webResearch !== false;
   return `Today is ${context.today}.
 
 Brand brief:
 ${brief(project)}
 
-Recent story topics to avoid repeating:
+Recent story topics to avoid repeating (pick different products, services and angles):
 ${list(recent)}
+
+Recent image prompts (do not repeat their subjects, settings, or compositions):
+${list(context.recentVisuals ?? [])}
 
 Stories the reviewer approved recently (more like these):
 ${list(context.approved)}
@@ -197,7 +250,10 @@ ${
     context.direction
       ? `Write ${count === 1 ? 'one story' : `${count} stories`} that follows this request from the brand's admin closely, while keeping the brand rules above:\n${context.direction}`
       : `Write ${count} stories for today with ${count} clearly different topics. Vary the angles: for example a useful tip, a timely hook, a product or service highlight, and a brand moment.`
-  }`;
+  }
+
+Write the stories in this order, each "visual" in its assigned photo style and text position:
+${plan.map((p, i) => `${i + 1}. Photo style: ${p.look}. Layout: ${placementGuide(p.placement)}.`).join('\n')}`;
 }
 
 // ChatGPT reviews Claude's drafts as an independent editor.
@@ -237,18 +293,21 @@ export const claudeScripts = {
     },
   ): Promise<Script[]> {
     assertLiveConfigured();
+    const plan = assignments(count, context);
     let problem = '';
     let scripts: Script[] | undefined;
     for (let attempt = 0; attempt < 2 && !scripts; attempt++) {
       const { output, urls } = await parse(
         planSchema,
-        planPrompt(project, count, recentTopics, context) +
+        planPrompt(project, count, recentTopics, context, plan) +
           (problem ? `\n\nYour previous attempt was rejected: ${problem} Fix that.` : ''),
         project.webResearch !== false ? [webSearch] : [],
       );
       try {
         if (output.stories.length < count) throw new AppError(`Expected ${count} stories.`);
-        scripts = output.stories.slice(0, count).map((s) => toScript(project, s, urls));
+        scripts = output.stories
+          .slice(0, count)
+          .map((s, i) => ({ ...toScript(project, s, urls), ...plan[i] }));
       } catch (error) {
         problem = (error as Error).message;
       }
@@ -306,23 +365,52 @@ export const claudeScripts = {
     assertLiveConfigured();
     const { output } = await parse(
       visualSchema,
-      `Brand brief:\n${brief(project)}\n\nCurrent image prompt:\n${script.visual}\n\nWrite a new image prompt that applies this direction from the brand's admin. Follow it closely; keep the brand's look only where the direction leaves room:\n${feedback}`,
+      `Brand brief:\n${brief(project)}\n\nCurrent image prompt:\n${script.visual}\n\nLayout: ${placementGuide(script.placement ?? 'top')}.\n\nWrite a new image prompt that applies this direction from the brand's admin. Follow it closely; keep the brand's look only where the direction leaves room:\n${feedback}`,
     );
     return output.visual;
   },
 };
 
-// A soft light wash behind the text areas keeps dark copy readable on photos.
-const wash = Buffer.from(
-  `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920"><defs><linearGradient id="w" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".55"/><stop offset=".55" stop-color="#fff" stop-opacity=".35"/><stop offset=".75" stop-color="#fff" stop-opacity=".1"/><stop offset=".86" stop-color="#fff" stop-opacity=".45"/><stop offset="1" stop-color="#fff" stop-opacity=".6"/></linearGradient></defs><rect width="1080" height="1920" fill="url(#w)"/></svg>`,
-);
+// A soft wash behind the text areas keeps copy readable on photos: light behind dark text,
+// dark behind light text, and strongest where this story's text sits.
+export function wash(placement: Placement, darkText: boolean) {
+  const color = darkText ? '#fff' : '#000';
+  const stops =
+    placement === 'top'
+      ? [
+          [0, 0.55],
+          [0.4, 0.35],
+          [0.6, 0.05],
+          [0.82, 0.1],
+          [1, 0.5],
+        ]
+      : [
+          [0, 0.15],
+          [0.3, 0.02],
+          [0.5, 0.2],
+          [0.7, 0.45],
+          [1, 0.6],
+        ];
+  return Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920"><defs><linearGradient id="w" x2="0" y2="1">${stops
+      .map(
+        ([at, opacity]) => `<stop offset="${at}" stop-color="${color}" stop-opacity="${opacity}"/>`,
+      )
+      .join('')}</linearGradient></defs><rect width="1080" height="1920" fill="url(#w)"/></svg>`,
+  );
+}
 
+// Whether this brand's story text is drawn dark or light, matching defaultLayout.
+function storyInk(project: Project) {
+  const colors = palette(project.colors);
+  return luminance(readable(colors.text, colors.background)) > 0.4 ? 'light' : 'dark';
+}
 export const openAIImages: ImageProvider = {
   async generate(project, script) {
     assertLiveConfigured();
     const result = await images().images.generate({
       model: OPENAI_IMAGE_MODEL,
-      prompt: `${script.visual}\n\nBrand palette: ${describePalette(project.colors)}. Vertical 9:16 composition. Absolutely no text, letters, numbers, watermarks, or logos.`,
+      prompt: `${script.visual}\n\n${script.look ? `Photo style: ${script.look}. ` : ''}Brand palette: ${describePalette(project.colors)}. Vertical 9:16 composition, ${placementGuide(script.placement ?? 'top')}. Absolutely no text, letters, numbers, watermarks, or logos.`,
       size: '1024x1536',
       quality: OPENAI_IMAGE_QUALITY,
       n: 1,
@@ -331,7 +419,7 @@ export const openAIImages: ImageProvider = {
     if (!b64) throw new AppError('OpenAI returned no image. Retry the generation.');
     const bytes = await sharp(Buffer.from(b64, 'base64'))
       .resize(1080, 1920, { fit: 'cover' })
-      .composite([{ input: wash }])
+      .composite([{ input: wash(script.placement ?? 'top', storyInk(project) === 'dark') }])
       .png()
       .toBuffer();
     return { bytes, mime: 'image/png' };

@@ -67,7 +67,11 @@ export type Script = {
   visual: string;
   sources: string[];
   review?: { reviewer: string; passed: boolean; notes: string[]; revised: boolean };
+  // The photo style and text position this story was assigned, so the next days can vary them.
+  look?: string;
+  placement?: Placement;
 };
+export type Placement = 'top' | 'bottom';
 export type Snapshot = {
   script: Script;
   layout: Layout;
