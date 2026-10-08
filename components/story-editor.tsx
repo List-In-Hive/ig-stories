@@ -30,11 +30,9 @@ import type { Command } from './workspace';
 const LAYERS = [
   { key: 'headline', label: 'Headline' },
   { key: 'body', label: 'Body' },
-  { key: 'cta', label: 'CTA' },
-  { key: 'contact', label: 'Contact' },
   { key: 'logo', label: 'Logo' },
 ] as const;
-const TEXT_LAYERS = ['headline', 'body', 'cta', 'contact'] as const;
+const TEXT_LAYERS = ['headline', 'body'] as const;
 // A rough box for the selected layer on the preview; the server does the exact line wrapping.
 function outlineHeight(key: keyof Layout, layer: Layout[keyof Layout]) {
   if (key === 'logo') return layer.width / 2;
@@ -364,20 +362,18 @@ export default function StoryEditor({
                   <h3>Give it your voice.</h3>
                   <p>Text edits keep the artwork.</p>
                 </div>
-                {(['headline', 'body', 'cta', 'contact'] as const).map((key) => (
+                {(['headline', 'body'] as const).map((key) => (
                   <Field
                     key={key}
                     label={
                       {
                         headline: 'Headline',
                         body: 'Body copy',
-                        cta: 'Call to action',
-                        contact: 'Contact details',
                       }[key]
                     }
                   >
                     <textarea
-                      rows={key === 'body' ? 5 : key === 'headline' ? 3 : 2}
+                      rows={key === 'body' ? 5 : 3}
                       value={layout[key].text}
                       onChange={(e) =>
                         update(key, { text: e.target.value, visible: !!e.target.value })
@@ -388,7 +384,7 @@ export default function StoryEditor({
                 ))}
                 <div className="soft-note">
                   <ShieldCheck size={16} />
-                  Use verified project facts. Contact details stay editable and can be hidden.
+                  Use verified project facts.
                 </div>
               </>
             )}

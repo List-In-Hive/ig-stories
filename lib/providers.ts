@@ -75,12 +75,7 @@ export const demoScript: ScriptProvider = {
       .split('\n')
       .map((v) => v.trim())
       .filter(Boolean);
-    const service = project.services
-      .split(/[\n,]+/)
-      .map((v) => v.trim())
-      .filter(Boolean);
     const body = facts.length ? facts[(seed + slot) % facts.length] : project.description;
-    const detail = service.length ? service[(seed + slot) % service.length] : project.industry;
     const safeBody =
       body || `Explore the ${project.industry.toLowerCase()} world of ${project.name}.`;
     if (banned.some((b) => safeBody.toLowerCase().includes(b)))
@@ -102,17 +97,14 @@ export const demoScript: ScriptProvider = {
     const script = {
       topic,
       headline,
-      body: kind === 'poll' ? `${safeBody}\n\nA. Tell me more\nB. Show me the details` : safeBody,
-      cta:
+      body:
         kind === 'poll'
-          ? 'Vote for your favorite'
+          ? `${safeBody}\n\nA. Tell me more\nB. Show me the details`
           : kind === 'question'
-            ? 'Reply and let us know'
+            ? `${safeBody} Reply and let us know.`
             : kind === 'dm'
-              ? 'DM us to find out more'
-              : detail
-                ? `Discover ${detail.toLowerCase()}`
-                : 'Discover more',
+              ? `${safeBody} DM us to find out more.`
+              : safeBody,
       visual: `${project.visualDirection}. Abstract composition in ${describePalette(project.colors)}. No lettering, logo, or contact details. ${project.rules}\n${project.allowEngagement ? 'Question, poll, and DM prompts are allowed.' : 'Informational stories only. No questions, answer choices, voting, replies, or DM prompts.'}`,
       sources: [],
       ...(kind !== 'standard' ? { kind } : {}),

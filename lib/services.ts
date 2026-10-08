@@ -120,8 +120,6 @@ const layerSchema = z.object({
 export const layoutSchema = z.object({
   headline: layerSchema,
   body: layerSchema,
-  cta: layerSchema,
-  contact: layerSchema,
   logo: z.object({
     x: z.number().min(0).max(1080),
     y: z.number().min(0).max(1920),
@@ -134,7 +132,6 @@ export const scriptSchema = z.object({
   topic: z.string().min(1).max(180),
   headline: z.string().min(1).max(500),
   body: z.string().max(5000),
-  cta: z.string().max(500),
   visual: z.string().max(3000),
   sources: z.array(z.string()).default([]),
 });
@@ -734,11 +731,8 @@ export function saveStory(storyId: string, expected: string, input: unknown, use
     ...snapshot.script,
     headline: layout.headline.text,
     body: layout.body.text,
-    cta: layout.cta.text,
   };
-  if (
-    !hasEngagement({ headline: layout.headline.text, body: layout.body.text, cta: layout.cta.text })
-  )
+  if (!hasEngagement({ headline: layout.headline.text, body: layout.body.text }))
     delete snapshot.script.kind;
   return appendVersion(storyId, snapshot, userId, expected);
 }
@@ -789,7 +783,6 @@ export async function reviseStory(
           ...current.layout,
           headline: { ...current.layout.headline, text: script.headline },
           body: { ...current.layout.body, text: script.body },
-          cta: { ...current.layout.cta, text: script.cta },
         }),
       };
     } else {
@@ -827,7 +820,7 @@ export async function reviseStory(
 // New copy keeps the admin's design: fonts, colors, sizes and positions stay as they were.
 function withText(design: Layout, next: Layout): Layout {
   const layout = structuredClone(design);
-  for (const key of ['headline', 'body', 'cta'] as const) {
+  for (const key of ['headline', 'body'] as const) {
     layout[key] = { ...design[key], text: next[key].text, visible: !!next[key].text };
   }
   return layout;
@@ -850,7 +843,6 @@ export async function requestChanges(
     snapshot.script = script;
     snapshot.layout.headline.text = script.headline;
     snapshot.layout.body.text = script.body;
-    snapshot.layout.cta.text = script.cta;
     applied = true;
   } else if (liveMode() && target === 'visual') {
     const visual = await claudeScripts.revisualize(snapshot.project, snapshot.script, feedback);
@@ -873,7 +865,7 @@ export async function requestChanges(
       applied = true;
     }
   } else if (target === 'layout' && /center/.test(normalized)) {
-    for (const layer of [snapshot.layout.headline, snapshot.layout.body, snapshot.layout.cta]) {
+    for (const layer of [snapshot.layout.headline, snapshot.layout.body]) {
       if (layer.align !== 'center') {
         layer.align = 'center';
         applied = true;

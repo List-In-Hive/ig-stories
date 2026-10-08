@@ -570,8 +570,8 @@ export default function ProjectForm({
           {tab === 'Contact' && (
             <>
               <p className="soft-note">
-                Only non-empty contact fields are included. Their visibility can be changed in the
-                editor.
+                Used by the AI for research and local facts. Contact details are not printed on
+                stories.
               </p>
               <div className="form-grid">
                 {(['website', 'email', 'phone', 'location'] as const).map((key) => (

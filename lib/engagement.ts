@@ -3,16 +3,16 @@ import type { Project, Script } from './types';
 
 const responsePrompt =
   /[?？]|\b(?:d\.?m\.?\s+(?:us|me)|direct\s+message|message\s+(?:us|me)|send\s+(?:us|me)\s+(?:a\s+)?message|reply|respond|vote|poll|tell\s+us|let\s+us\s+know|do\s+you\s+like|share\s+your\s+(?:thoughts|opinion))\b/i;
-export function hasEngagement(script: Pick<Script, 'headline' | 'body' | 'cta' | 'kind'>) {
+export function hasEngagement(script: Pick<Script, 'headline' | 'body' | 'kind'>) {
   return (
     (!!script.kind && script.kind !== 'standard') ||
-    responsePrompt.test([script.headline, script.body, script.cta].join('\n')) ||
+    responsePrompt.test([script.headline, script.body].join('\n')) ||
     /(?:^|\n)\s*[A-D][.)]\s+\S/.test(script.body)
   );
 }
 export function assertEngagementAllowed(
   project: Project,
-  script: Pick<Script, 'headline' | 'body' | 'cta' | 'kind'>,
+  script: Pick<Script, 'headline' | 'body' | 'kind'>,
 ) {
   if (!project.allowEngagement && hasEngagement(script))
     throw new AppError(

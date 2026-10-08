@@ -47,6 +47,7 @@ import {
   formatClock,
   formatDate,
   formatTime,
+  formatShortTime,
   setDisplayTimeZone,
   zoneLabel,
 } from './ui';
@@ -538,7 +539,9 @@ function StoryCard({
         </div>
         <div className="card-meta">
           <Badge status={story.approvedVersionId ? 'approved' : 'draft'} />
-          <span>English · 9:16</span>
+          <span title={`Generated ${formatTime(story.createdAt)}`}>
+            Generated {formatShortTime(story.createdAt)}
+          </span>
         </div>
         <div className="card-actions">
           <Button variant="ghost" onClick={() => navigate(`/editor/${story.id}`)}>
@@ -1431,7 +1434,6 @@ function ManualForm({
   const [answers, setAnswers] = useState('');
   const [headline, setHeadline] = useState('');
   const [body, setBody] = useState('');
-  const [cta, setCta] = useState('');
   const [visual, setVisual] = useState(project.visualDirection);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -1461,7 +1463,6 @@ function ManualForm({
                       .filter(Boolean)
                       .join('\n\n')
                   : body,
-              cta,
               visual,
               sources: [],
               ...(kind !== 'standard' ? { kind } : {}),
@@ -1518,9 +1519,6 @@ function ManualForm({
               />
             </Field>
           )}
-          <Field label="Call to action (optional)">
-            <input value={cta} onChange={(e) => setCta(e.target.value)} />
-          </Field>
           <Field label="Visual instructions">
             <textarea rows={3} value={visual} onChange={(e) => setVisual(e.target.value)} />
           </Field>

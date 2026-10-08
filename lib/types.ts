@@ -54,8 +54,6 @@ export type Layer = {
 export type Layout = {
   headline: Layer;
   body: Layer;
-  cta: Layer;
-  contact: Layer;
   logo: { x: number; y: number; width: number; visible: boolean };
 };
 export type Script = {
@@ -63,7 +61,6 @@ export type Script = {
   topic: string;
   headline: string;
   body: string;
-  cta: string;
   visual: string;
   sources: string[];
   review?: { reviewer: string; passed: boolean; notes: string[]; revised: boolean };

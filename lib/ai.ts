@@ -46,12 +46,11 @@ const storySchema = z.object({
   topic: z.string(),
   headline: z.string(),
   body: z.string(),
-  cta: z.string(),
   visual: z.string(),
   sources: z.array(z.string()),
 });
 const planSchema = z.object({ stories: z.array(storySchema) });
-const rewriteSchema = z.object({ headline: z.string(), body: z.string(), cta: z.string() });
+const rewriteSchema = z.object({ headline: z.string(), body: z.string() });
 const visualSchema = z.object({ visual: z.string() });
 const reviewSchema = z.object({
   reviews: z.array(
@@ -62,13 +61,13 @@ export const OPENAI_REVIEW_MODEL = process.env.OPENAI_REVIEW_MODEL || 'gpt-5.5';
 export const OPENAI_VISION_MODEL = process.env.OPENAI_VISION_MODEL || OPENAI_REVIEW_MODEL;
 
 const SYSTEM = `You write Instagram Stories for small brands managed by a creative agency.
-Each story is one 1080x1920 frame: a short headline, one or two sentences of body copy, and a call to action, placed as text over AI-generated background artwork.
+Each story is one 1080x1920 frame: a short headline and one or two sentences of body copy, placed as text over AI-generated background artwork.
 
 Rules that always apply:
 - Claims about the brand itself (products, prices, offers, history, quality) must come from the brief. Never invent prices, discounts, statistics, awards, testimonials, or dates.
 - Timely angles found through web research (seasons, local events, industry news, trends) are welcome, but only when a search result supports them; list the URLs you relied on in "sources", otherwise leave "sources" empty.
 - Respect the brand's content rules and never touch a prohibited topic.
-- Keep copy short so it fits the frame: headline at most 6 words, body at most 160 characters, CTA at most 32 characters.
+- Keep copy short so it fits the frame: headline at most 6 words, body at most 160 characters. There is no separate call-to-action or contact line; any invitation belongs in the body.
 - Write in the language the content rules ask for; otherwise English.
 - "visual" is a prompt for an image model: describe one specific scene in the brand's visual direction and palette, written in the photo style and text position assigned to that story. It must contain no text, letters, numbers, logos, or people's faces. Keep the part of the frame where the text sits calm and uncluttered so overlaid text stays readable.
 - The brand's visual direction sets the mood, palette, and world of subjects; the assigned photo style decides the shot. Do not fall back to the same signature shot every time.
@@ -105,7 +104,7 @@ function brief(project: Project) {
 
 function engagementRules(project: Project) {
   return project.allowEngagement
-    ? `Story kinds: "standard" is informational. "question" asks the audience something, "dm" invites a direct message, "poll" offers 2 to 4 answers listed at the end of the body as separate lines "A. ...", "B. ...". Mix kinds, but keep at least half of the stories "standard".`
+    ? `Story kinds: "standard" is informational. "question" asks the audience something, "dm" invites a direct message in the body, "poll" offers 2 to 4 answers listed at the end of the body as separate lines "A. ...", "B. ...". Mix kinds, but keep at least half of the stories "standard".`
     : `Every story must have kind "standard" and be purely informational: no questions, no question marks, no polls or answer choices, and no requests to reply, vote, comment, or send a message.`;
 }
 
@@ -151,7 +150,6 @@ function toScript(project: Project, story: z.infer<typeof storySchema>, urls: Se
     topic: story.topic.slice(0, 180),
     headline: story.headline,
     body: story.body,
-    cta: story.cta,
     visual: story.visual,
     // Keep only sources that web search really returned during this request.
     sources: story.sources.filter((url) => urls.has(url)).slice(0, 5),
@@ -261,15 +259,14 @@ async function review(project: Project, scripts: Script[]) {
   const response = await images().responses.parse({
     model: OPENAI_REVIEW_MODEL,
     instructions:
-      'You are a strict social media editor reviewing Instagram Story drafts before a human sees them. Fail a story if it states a brand claim not supported by the brief, cites a timely fact without a source, touches a prohibited topic, breaks the content rules, is too long for a story frame (headline over 6 words, body over 160 characters, CTA over 32 characters), or is bland and generic. Keep each issue to one short, actionable sentence. Pass good stories with no issues.',
+      'You are a strict social media editor reviewing Instagram Story drafts before a human sees them. Fail a story if it states a brand claim not supported by the brief, cites a timely fact without a source, touches a prohibited topic, breaks the content rules, is too long for a story frame (headline over 6 words, body over 160 characters), or is bland and generic. Keep each issue to one short, actionable sentence. Pass good stories with no issues.',
     input: `Brand brief:\n${brief(project)}\n\n${engagementRules(project)}\n\nDrafts:\n${JSON.stringify(
-      scripts.map(({ kind, topic, headline, body, cta, sources }, index) => ({
+      scripts.map(({ kind, topic, headline, body, sources }, index) => ({
         index,
         kind: kind || 'standard',
         topic,
         headline,
         body,
-        cta,
         sources,
       })),
       null,
@@ -353,7 +350,7 @@ export const claudeScripts = {
       rewriteSchema,
       `Brand brief:\n${brief(project)}\n\n${engagementRules(project)}\n\nCurrent story (${
         script.kind || 'standard'
-      }):\nHeadline: ${script.headline}\nBody: ${script.body}\nCTA: ${script.cta}\nSources: ${
+      }):\nHeadline: ${script.headline}\nBody: ${script.body}\nSources: ${
         script.sources.join(', ') || 'none'
       }\n\nRewrite the story text to apply this feedback, keeping everything else as it is:\n${feedback}`,
     );
@@ -381,14 +378,13 @@ export function wash(placement: Placement, darkText: boolean) {
           [0, 0.55],
           [0.4, 0.35],
           [0.6, 0.05],
-          [0.82, 0.1],
-          [1, 0.5],
+          [1, 0.05],
         ]
       : [
-          [0, 0.15],
-          [0.3, 0.02],
-          [0.5, 0.2],
-          [0.7, 0.45],
+          [0, 0.05],
+          [0.4, 0.02],
+          [0.55, 0.25],
+          [0.75, 0.5],
           [1, 0.6],
         ];
   return Buffer.from(

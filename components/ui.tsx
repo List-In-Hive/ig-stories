@@ -196,6 +196,15 @@ export const formatDate = (value: string, options?: Intl.DateTimeFormatOptions) 
         day: 'numeric',
         ...options,
       });
+// Compact time for small cards; the zone is shown elsewhere on the page.
+export const formatShortTime = (value: string) =>
+  new Date(value).toLocaleString('en-US', {
+    timeZone: displayZone,
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 export const formatTime = (value: string) =>
   new Date(value).toLocaleString('en-US', {
     timeZone: displayZone,

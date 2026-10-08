@@ -293,6 +293,10 @@ test('each text layer keeps its own weight, case, spacing, shadow and color', ()
   layout.headline.bold = false;
   const saved = service.saveStory(chosenStory.id, base.id, layout, admin.id);
   assert.equal(saved.data.layout.body.lineHeight, 1.6);
+  const legacy = { ...layout, cta: { ...layout.body, text: 'Old call to action' } };
+  const cleaned = service.saveStory(chosenStory.id, saved.id, legacy, admin.id);
+  assert.equal('cta' in cleaned.data.layout, false, 'old CTA layers are dropped on save');
+  assert.doesNotMatch(composition.renderSvg(cleaned.data), /Old call to action/);
   const svg = composition.renderSvg(saved.data);
   const body = svg.match(/<text[^>]*fill="#ffffff"[^>]*>.*?<\/text>/)?.[0] || '';
   assert.match(body, /font-weight="700"/);
@@ -303,7 +307,7 @@ test('each text layer keeps its own weight, case, spacing, shadow and color', ()
     () =>
       service.saveStory(
         chosenStory.id,
-        saved.id,
+        cleaned.id,
         { ...layout, body: { ...layout.body, lineHeight: 9 } },
         admin.id,
       ),
@@ -331,7 +335,6 @@ test('manual script is exact, editing project affects future drafts, and archive
     topic: 'A manual test',
     headline: 'Exact PM supplied headline!',
     body: 'Exact body. No rewriting.',
-    cta: 'Exact call to action',
     visual: 'Exact supplied visual instructions',
     sources: [],
   };
@@ -528,8 +531,7 @@ test('PNG dimensions, artwork/text/logo composition, frozen font references, ove
   assert.ok(story.version.data.fontAssets?.Inter);
   const stripped = structuredClone(story.version.data);
   stripped.layout.logo.visible = false;
-  for (const key of ['headline', 'body', 'cta', 'contact'] as const)
-    stripped.layout[key].visible = false;
+  for (const key of ['headline', 'body'] as const) stripped.layout[key].visible = false;
   assert.notDeepEqual(png, composition.renderPng(stripped));
   stripped.layout.headline.visible = true;
   stripped.layout.headline.text = 'A long story that cannot fit safely at the bottom';

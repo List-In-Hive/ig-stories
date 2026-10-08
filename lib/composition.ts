@@ -70,7 +70,7 @@ export function snapshotFonts(project?: Project) {
     ...(brand.bold ? { 'Brand-Bold': brand.bold.id } : {}),
   };
 }
-type TextKey = 'headline' | 'body' | 'cta' | 'contact';
+type TextKey = 'headline' | 'body';
 // Headlines are bold by default; every text layer can override weight, case and spacing.
 export function textStyle(key: TextKey, layer: Layer) {
   return {
@@ -115,30 +115,17 @@ export function defaultLayout(project: Project, script: Script): Layout {
     align: 'left',
     visible: !!text,
   });
-  // Stories alternate between text at the top and text near the bottom, above the CTA.
+  // Stories alternate between text at the top and text near the bottom of the frame.
   const bottom = script.placement === 'bottom';
   return {
-    headline: layer(script.headline, bottom ? 1040 : 340, 88),
-    body: layer(script.body, bottom ? 1400 : 670, 37),
-    cta: layer(
-      script.cta,
-      1650,
-      29,
-      readable(colors.accent, colors.background, 3) === colors.accent ? colors.accent : ink,
-    ),
-    contact: layer(
-      [project.website, project.email, project.phone, project.address, project.location]
-        .filter(Boolean)
-        .join(' · '),
-      1730,
-      23,
-    ),
+    headline: layer(script.headline, bottom ? 1180 : 340, 88),
+    body: layer(script.body, bottom ? 1540 : 670, 37),
     logo: { x: 90, y: 150, width: 200, visible: !!project.logoId },
   };
 }
 export function validateComposition(snapshot: Snapshot) {
   const errors: string[] = [];
-  for (const key of ['headline', 'body', 'cta', 'contact'] as const) {
+  for (const key of ['headline', 'body'] as const) {
     const layer = snapshot.layout[key];
     if (!layer.visible || !layer.text) continue;
     try {
@@ -204,7 +191,7 @@ export function renderSvg(snapshot: Snapshot) {
         `@font-face{font-family:'${face.family.replace(/['"\\<>&]/g, '')}';font-weight:${face.weight};src:url(data:font/${face.file.endsWith('.otf') ? 'otf' : 'ttf'};base64,${fs.readFileSync(/* turbopackIgnore: true */ face.file).toString('base64')});}`,
     )
     .join('');
-  const layers = (['headline', 'body', 'cta', 'contact'] as const)
+  const layers = (['headline', 'body'] as const)
     .map((key) => {
       const layer = snapshot.layout[key];
       if (!layer.visible) return '';

@@ -22,7 +22,6 @@ const story = (topic: string, kind = 'standard') => ({
   topic,
   headline: `${topic} today`,
   body: 'Seasonal coffee and freshly baked pastries are part of our menu.',
-  cta: 'Visit us this week',
   visual: `A calm morning scene about ${topic}`,
   sources: [] as string[],
 });
@@ -177,7 +176,7 @@ test('live scripts that break the engagement rule are retried with the reason', 
 
 test('live text feedback is rewritten by Claude as a new draft', async () => {
   const current = service.listStories().find((s) => s.projectId === project.id)!;
-  replies = [{ headline: 'Warm cups', body: 'Freshly baked pastries.', cta: 'Stop by' }];
+  replies = [{ headline: 'Warm cups', body: 'Freshly baked pastries. Stop by.' }];
   const result = await service.requestChanges(
     current.id,
     current.latestVersionId,
@@ -188,7 +187,7 @@ test('live text feedback is rewritten by Claude as a new draft', async () => {
   assert.equal(result.applied, true);
   const next = service.getStory(current.id);
   assert.equal(next.version.data.layout.headline.text, 'Warm cups');
-  assert.equal(next.version.data.script.cta, 'Stop by');
+  assert.equal(next.version.data.script.body, 'Freshly baked pastries. Stop by.');
 });
 
 test('regenerating with an admin prompt guides Claude and keeps the story design', async () => {
@@ -227,7 +226,7 @@ test('regenerating with an admin prompt guides Claude and keeps the story design
   assert.equal(image.data.prompt, 'A pumpkin latte on a sunny windowsill');
   assert.equal(image.data.layout.headline.text, 'Pumpkin latte today');
 
-  replies = [{ headline: 'Fall in a cup', body: 'Pumpkin spice is back.', cta: 'Try it today' }];
+  replies = [{ headline: 'Fall in a cup', body: 'Pumpkin spice is back.' }];
   const text = await service.reviseStory(current.id, image.id, 'text', admin.id, 'Shorter');
   assert.equal(text.data.layout.headline.text, 'Fall in a cup');
   assert.equal(text.data.layout.headline.color, '#ffffff');
@@ -291,7 +290,7 @@ test('Claude researches, ChatGPT reviews, and flagged stories are revised once',
   };
   replies = [
     { stories: [researched, story('Tip'), story('Product'), story('Moment')] },
-    { headline: 'Pastry, slowly', body: 'Freshly baked pastries.', cta: 'Visit us' },
+    { headline: 'Pastry, slowly', body: 'Freshly baked pastries.' },
   ];
   reviews = [
     {
@@ -492,7 +491,6 @@ test('palette roles: old three-color brands gain a text color, and story text st
   const branded = { ...base, colors: ['#f7f4ee', '#3b2a8f', '#c2410c', '#e9e2f5', '#0f766e'] };
   const layout = composition.defaultLayout(branded, story('Palette') as never);
   assert.equal(layout.headline.color, '#3b2a8f');
-  assert.equal(layout.cta.color, '#c2410c');
   const saved = service.saveProject(branded, project.id);
   assert.equal(saved.colors.length, 5);
   service.saveProject({ ...saved, colors: base.colors }, project.id);
@@ -525,8 +523,7 @@ test('an uploaded brand font is validated, frozen into stories, and used for ren
   assert.match(composition.renderSvg(snapshot), /font-family="Montserrat ExtraBold"/);
   const branded = composition.renderPng(snapshot);
   const plain = structuredClone(snapshot);
-  for (const key of ['headline', 'body', 'cta', 'contact'] as const)
-    plain.layout[key].font = 'Inter';
+  for (const key of ['headline', 'body'] as const) plain.layout[key].font = 'Inter';
   assert.notDeepEqual(branded, composition.renderPng(plain));
   service.saveProject({ ...saved, font: 'Inter', brandFont: null }, project.id);
 });
