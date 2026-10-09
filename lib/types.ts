@@ -158,7 +158,6 @@ export type AppState = {
     exportFormat: 'jpeg' | 'png';
     // The stock photo service in use, or null when no key is configured.
     stock: string | null;
-    aiVideo: boolean;
   };
   worker: { online: boolean; heartbeat: string | null; nextRun: string };
   today: string;

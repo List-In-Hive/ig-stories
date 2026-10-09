@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, type FormEvent, type MouseEvent } from 'react';
 import {
+  Clapperboard,
   ArrowLeft,
   Check,
   Download,
@@ -79,7 +80,6 @@ export default function StoryEditor({
   story,
   project,
   stock,
-  aiVideo = false,
   command,
   notify,
   onDirty,
@@ -88,7 +88,6 @@ export default function StoryEditor({
   story: Story;
   project?: Project;
   stock?: string | null;
-  aiVideo?: boolean;
   command: Command;
   notify: (message: string) => void;
   onDirty: (dirty: boolean) => void;
@@ -738,126 +737,150 @@ export default function StoryEditor({
               ))}
             </div>
           )}
-          <div className="regenerate-box">
-            <label htmlFor="regen-prompt">Regenerate with your prompt</label>
-            <textarea
-              id="regen-prompt"
-              rows={3}
-              maxLength={2000}
-              value={prompt}
-              disabled={!!busy}
-              onChange={(e) => setPrompt(e.target.value)}
-              placeholder="Optional. e.g. A latte on a sunny windowsill, morning light. Or: make it about our new pumpkin latte."
-            />
-            <div className="artwork-actions">
-              <Button
-                variant="secondary"
-                busy={busy === 'image'}
-                disabled={blocked}
-                onClick={() => void revise('image')}
-              >
-                <RefreshCw size={15} />
-                New image
-              </Button>
-              <Button
-                variant="secondary"
-                busy={busy === 'text'}
-                disabled={blocked}
-                onClick={() => void revise('text')}
-              >
-                <Type size={15} />
-                New text
-              </Button>
-              <Button
-                variant="secondary"
-                busy={busy === 'idea'}
-                disabled={blocked}
-                onClick={() => void revise('idea')}
-              >
-                <Sparkles size={15} />
-                New story
-              </Button>
-            </div>
-            <small>
-              {prompt.trim()
-                ? 'Your prompt guides the result. Your design (fonts, colors, positions) is kept.'
-                : 'Leave it empty for a fresh take. Your design (fonts, colors, positions) is kept.'}
-            </small>
-          </div>
-          {(stockOn || library.length > 0) && (
-            <div className="photo-picker">
-              <div className="picker-tabs">
-                {stockOn && (
-                  <Button
-                    variant={picker === 'stock' ? 'primary' : 'secondary'}
-
-                    disabled={blocked}
-                    onClick={() => {
-                      setPicker(picker === 'stock' ? '' : 'stock');
-                      if (!results.length) void searchPhotos();
-                    }}
-                  >
-                    <Search size={14} />
-                    Find stock photo
-                  </Button>
-                )}
-                {library.length > 0 && (
-                  <Button
-                    variant={picker === 'library' ? 'primary' : 'secondary'}
-
-                    disabled={blocked}
-                    onClick={() => setPicker(picker === 'library' ? '' : 'library')}
-                  >
-                    <ImageIcon size={14} />
-                    Brand photos
-                  </Button>
-                )}
+          <details className="story-tool">
+            <summary>
+              <RefreshCw size={16} />
+              <span>
+                Regenerate
+                <small>New image, new text or a whole new story</small>
+              </span>
+            </summary>
+            <div className="regenerate-box">
+              <label htmlFor="regen-prompt">Your idea (optional)</label>
+              <textarea
+                id="regen-prompt"
+                rows={3}
+                maxLength={2000}
+                value={prompt}
+                disabled={!!busy}
+                onChange={(e) => setPrompt(e.target.value)}
+                placeholder="Optional. e.g. A latte on a sunny windowsill, morning light. Or: make it about our new pumpkin latte."
+              />
+              <div className="artwork-actions">
+                <Button
+                  variant="secondary"
+                  busy={busy === 'image'}
+                  disabled={blocked}
+                  onClick={() => void revise('image')}
+                >
+                  <RefreshCw size={15} />
+                  New image
+                </Button>
+                <Button
+                  variant="secondary"
+                  busy={busy === 'text'}
+                  disabled={blocked}
+                  onClick={() => void revise('text')}
+                >
+                  <Type size={15} />
+                  New text
+                </Button>
+                <Button
+                  variant="secondary"
+                  busy={busy === 'idea'}
+                  disabled={blocked}
+                  onClick={() => void revise('idea')}
+                >
+                  <Sparkles size={15} />
+                  New story
+                </Button>
               </div>
-              {picker === 'stock' && (
-                <>
-                  <form className="picker-search" onSubmit={searchPhotos}>
-                    <input
-                      aria-label="Search stock photos"
-                      value={query}
-                      maxLength={100}
-                      placeholder="e.g. latte art close up"
-                      onChange={(e) => setQuery(e.target.value)}
-                    />
-                    <Button variant="secondary" busy={busy === 'search'}>
-                      Search
+              <small>
+                {prompt.trim()
+                  ? 'Your prompt guides the result. Your design (fonts, colors, positions) is kept.'
+                  : 'Leave it empty for a fresh take. Your design (fonts, colors, positions) is kept.'}
+              </small>
+            </div>
+          </details>
+          {(stockOn || library.length > 0) && (
+            <details className="story-tool">
+              <summary>
+                <ImageIcon size={16} />
+                <span>
+                  Change photo
+                  <small>
+                    {stockOn && library.length
+                      ? 'Free stock photos or your brand photos'
+                      : stockOn
+                        ? 'Free stock photos'
+                        : 'Your brand photos'}
+                  </small>
+                </span>
+              </summary>
+              <div className="photo-picker">
+                <div className="picker-tabs">
+                  {stockOn && (
+                    <Button
+                      variant={picker === 'stock' ? 'primary' : 'secondary'}
+
+                      disabled={blocked}
+                      onClick={() => {
+                        setPicker(picker === 'stock' ? '' : 'stock');
+                        if (!results.length) void searchPhotos();
+                      }}
+                    >
+                      <Search size={14} />
+                      Find stock photo
                     </Button>
-                  </form>
+                  )}
+                  {library.length > 0 && (
+                    <Button
+                      variant={picker === 'library' ? 'primary' : 'secondary'}
+
+                      disabled={blocked}
+                      onClick={() => setPicker(picker === 'library' ? '' : 'library')}
+                    >
+                      <ImageIcon size={14} />
+                      Brand photos
+                    </Button>
+                  )}
+                </div>
+                {picker === 'stock' && (
+                  <>
+                    <form className="picker-search" onSubmit={searchPhotos}>
+                      <input
+                        aria-label="Search stock photos"
+                        value={query}
+                        maxLength={100}
+                        placeholder="e.g. latte art close up"
+                        onChange={(e) => setQuery(e.target.value)}
+                      />
+                      <Button variant="secondary" busy={busy === 'search'}>
+                        Search
+                      </Button>
+                    </form>
+                    <div className="photo-grid">
+                      {results.map((photo) => (
+                        <button
+                          key={photo.id}
+                          disabled={!!busy || blocked}
+                          title={`${photo.alt} · ${photo.photographer}`}
+                          onClick={() => void choosePhoto({ stock: photo.id })}
+                        >
+                          <img alt={photo.alt} src={photo.thumb} loading="lazy" />
+                        </button>
+                      ))}
+                    </div>
+                    <small className="photo-credit">
+                      Free photos from {stockOn}. Tap one to use it.
+                    </small>
+                  </>
+                )}
+                {picker === 'library' && (
                   <div className="photo-grid">
-                    {results.map((photo) => (
+                    {library.map((photoId) => (
                       <button
-                        key={photo.id}
+                        key={photoId}
                         disabled={!!busy || blocked}
-                        title={`${photo.alt} · ${photo.photographer}`}
-                        onClick={() => void choosePhoto({ stock: photo.id })}
+                        onClick={() => void choosePhoto({ library: photoId })}
                       >
-                        <img alt={photo.alt} src={photo.thumb} loading="lazy" />
+                        <img alt="Brand photo" src={`/api/assets/${photoId}`} loading="lazy" />
                       </button>
                     ))}
                   </div>
-                  <small className="photo-credit">
-                    Free photos from {stockOn}. Tap one to use it.
-                  </small>
-                </>
-              )}
-              {picker === 'library' && (
-                <div className="photo-grid">
-                  {library.map((photoId) => (
-                    <button
-                      key={photoId}
-                      disabled={!!busy || blocked}
-                      onClick={() => void choosePhoto({ library: photoId })}
-                    >
-                      <img alt="Brand photo" src={`/api/assets/${photoId}`} loading="lazy" />
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            </details>
           )}
           {base.data.script.credit && (
             <small className="photo-credit">
@@ -867,12 +890,16 @@ export default function StoryEditor({
               </a>
             </small>
           )}
-          <StoryVideo
-            versionId={base.id}
-            approved={approved && !dirty}
-            aiVideo={aiVideo}
-            notify={notify}
-          />
+          <details className="story-tool">
+            <summary>
+              <Clapperboard size={16} />
+              <span>
+                Video story
+                <small>Save as an 8-second video</small>
+              </span>
+            </summary>
+            <StoryVideo versionId={base.id} approved={approved && !dirty} notify={notify} />
+          </details>
           {dirty && (
             <small className="muted center">
               Save your changes before generating or approving.

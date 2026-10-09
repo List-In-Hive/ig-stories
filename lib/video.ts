@@ -60,29 +60,20 @@ function camera(motion: Motion, frames: number) {
   return `z='1+0.14*${p}':${center}`;
 }
 
-// background: the story background image, or a clip (the AI video) that already moves.
 export async function renderVideo(
   snapshot: Snapshot,
-  options: { motion?: Motion; clip?: Buffer; seconds?: number } = {},
+  options: { motion?: Motion; seconds?: number } = {},
 ) {
   const seconds = options.seconds || VIDEO_SECONDS;
   const frames = Math.round(seconds * FPS);
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'storyloom-video-'));
   try {
     const inputs: string[] = [];
-    let graph: string;
-    if (options.clip) {
-      const clip = path.join(dir, 'clip.mp4');
-      fs.writeFileSync(clip, options.clip);
-      inputs.push('-stream_loop', '-1', '-i', clip);
-      graph = `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=${FPS},setsar=1[bg0]`;
-    } else {
-      const background = path.join(dir, 'background.png');
-      fs.writeFileSync(background, renderPng(snapshot, ['background']));
-      inputs.push('-i', background);
-      // Upscaling first keeps the zoom smooth instead of stepping a pixel at a time.
-      graph = `[0:v]scale=2160:3840,zoompan=${camera(options.motion || 'zoom-in', frames)}:d=${frames}:s=1080x1920:fps=${FPS},setsar=1[bg0]`;
-    }
+    const background = path.join(dir, 'background.png');
+    fs.writeFileSync(background, renderPng(snapshot, ['background']));
+    inputs.push('-i', background);
+    // Upscaling first keeps the zoom smooth instead of stepping a pixel at a time.
+    let graph = `[0:v]scale=2160:3840,zoompan=${camera(options.motion || 'zoom-in', frames)}:d=${frames}:s=1080x1920:fps=${FPS},setsar=1[bg0]`;
     let last = 'bg0';
     let index = 1;
     for (const { part, start, rise } of entrances) {

@@ -56,10 +56,7 @@ Each project can hold up to 60 of the brand's own photos (project form, **Photos
 
 An approved story can be saved as an MP4 from the editor's **Video story** box:
 
-- **Make video** (free): an 8-second 1080×1920 H.264 video with a slow camera move (zoom in, zoom out or pan) on the background while the logo, headline and body fade and ease in. It is rendered with ffmpeg; the `ffmpeg-static` package ships a binary, and `FFMPEG_PATH` overrides it.
-- **Animate with AI** (needs `RUNWAYML_API_SECRET`): Runway (`gen4_turbo` by default, `RUNWAY_MODEL` to change) animates the clean background into a 5-second clip, about $0.25 each, and the story's own text is added on top so it stays exact. The editor checks on the clip until it is ready; the finished video is kept with its story version.
-
-OpenAI's Sora video API was shut down in September 2026, so it is not used.
+- **Make video**: an 8-second 1080×1920 H.264 video with a slow camera move (zoom in, zoom out or pan) on the background while the logo, headline and body fade and ease in. It is rendered with ffmpeg; the `ffmpeg-static` package ships a binary, and `FFMPEG_PATH` overrides it.
 
 ## Adding an account
 

@@ -246,7 +246,7 @@ export default function Workspace() {
             {project && (
               <>
                 <ChevronRight size={14} />
-                {project.name}
+                <span className="crumb-project">{project.name}</span>
               </>
             )}
           </div>
@@ -310,7 +310,6 @@ export default function Workspace() {
               story={story}
               project={state.projects.find((p) => p.id === story.projectId)}
               stock={state.settings.stock}
-              aiVideo={state.settings.aiVideo}
               command={command}
               notify={notify}
               onDirty={setDirty}
@@ -525,7 +524,7 @@ function StoryCard({
               onChange={(e) => onSelect(e.target.checked)}
             />
           )}
-          <span>STORY {String(story.slot || 1).padStart(2, '0')}</span>
+          <span>Story {story.slot || 1}</span>
           <button
             className="preview-more"
             aria-label="Open story editor"
@@ -984,7 +983,7 @@ function Stat({
         <span>{label}</span>
         <i>{icon}</i>
       </div>
-      <strong>{String(value).padStart(2, '0')}</strong>
+      <strong>{value}</strong>
       <small>{note}</small>
     </div>
   );

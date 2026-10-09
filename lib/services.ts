@@ -36,7 +36,6 @@ import {
   stockName,
   type StockPhoto,
 } from './stock';
-import { aiVideoConfigured } from './animate';
 import { DEFAULT_TEXT, normalizePalette } from './palette';
 import { defaultLayout, validateComposition, snapshotFonts } from './composition';
 import type {
@@ -1149,7 +1148,6 @@ export function state(user: User): AppState {
       exportFormat:
         setting('exportFormat', process.env.EXPORT_FORMAT || 'jpeg') === 'png' ? 'png' : 'jpeg',
       stock: stockConfigured() ? stockName() : null,
-      aiVideo: aiVideoConfigured(),
     },
     worker: {
       online: !!heartbeat && Date.now() - Date.parse(heartbeat) < 45000,

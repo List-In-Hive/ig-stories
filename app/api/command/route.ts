@@ -18,9 +18,7 @@ import {
   feedbackFor,
   findStock,
   swapPhoto,
-  exportVersion,
 } from '@/lib/services';
-import { checkAnimation, startAnimation } from '@/lib/animate';
 import { setSetting } from '@/lib/db';
 import { deleteProject } from '@/lib/lifecycle';
 import { isTimeZone } from '@/lib/schedule';
@@ -133,20 +131,6 @@ export async function POST(request: Request) {
           user.id,
         );
         break;
-      case 'animate': {
-        const version = exportVersion(z.string().parse(body.versionId));
-        result = await startAnimation(
-          version.id,
-          version.data,
-          z.string().max(1000).default('').parse(body.prompt),
-        );
-        break;
-      }
-      case 'animation': {
-        const version = exportVersion(z.string().parse(body.versionId));
-        result = await checkAnimation(version.id, version.data);
-        break;
-      }
       case 'revise':
         result = await reviseStory(
           z.string().parse(body.storyId),
