@@ -111,6 +111,8 @@ export default function StoryEditor({
   const [query, setQuery] = useState(story.version.data.script.photoSearch || '');
   const [results, setResults] = useState<StockPhoto[]>([]);
   const library = project?.photoIds ?? [];
+  // Stock search only for projects that allow stock photos.
+  const stockOn = project?.stockPhotos === false ? null : stock;
   const dirty = JSON.stringify(layout) !== JSON.stringify(base.data.layout);
   const conflict = story.latestVersionId !== base.id;
   useEffect(() => {
@@ -782,10 +784,10 @@ export default function StoryEditor({
                 : 'Leave it empty for a fresh take. Your design (fonts, colors, positions) is kept.'}
             </small>
           </div>
-          {(stock || library.length > 0) && (
+          {(stockOn || library.length > 0) && (
             <div className="photo-picker">
               <div className="picker-tabs">
-                {stock && (
+                {stockOn && (
                   <Button
                     variant={picker === 'stock' ? 'primary' : 'secondary'}
 
@@ -838,7 +840,7 @@ export default function StoryEditor({
                     ))}
                   </div>
                   <small className="photo-credit">
-                    Free photos from {stock}. Tap one to use it.
+                    Free photos from {stockOn}. Tap one to use it.
                   </small>
                 </>
               )}

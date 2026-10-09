@@ -106,3 +106,13 @@ test('brand photos must be uploaded photos', () => {
     /brand photos/,
   );
 });
+
+test('a project with stock photos off cannot swap in a stock photo', async () => {
+  const off = service.saveProject({ ...project, stockPhotos: false }, project.id);
+  const story = service.listStories().find((s) => s.projectId === off.id)!;
+  await assert.rejects(
+    service.swapPhoto(story.id, story.latestVersionId, { stock: 'pixabay:101' }, admin.id),
+    /turned off/,
+  );
+  service.saveProject({ ...off, stockPhotos: true }, off.id);
+});

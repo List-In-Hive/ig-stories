@@ -536,6 +536,8 @@ export async function swapPhoto(
   const story = checkVersion(storyId, expected);
   const project = getProject(story.projectId);
   const current = story.version.data;
+  if (choice.stock && project.stockPhotos === false)
+    throw new AppError('Stock photos are turned off for this project.');
   const painted = choice.stock
     ? await stockBackground(project, current.script, '', await getStock(choice.stock))
     : await libraryBackground(project, current.script, choice.library);
@@ -894,7 +896,11 @@ export async function reviseStory(
       if (!prompt && snapshot.script.topic === current.script.topic) {
         snapshot = await makeSnapshot(project, 1, seed + 1);
       }
-      snapshot.layout = withText(current.layout, snapshot.layout);
+      const fresh = snapshot.layout;
+      snapshot.layout = withText(current.layout, fresh);
+      // The new artwork leaves room for text on its own side, so the text moves there too.
+      if (snapshot.script.placement !== current.script.placement)
+        for (const key of ['headline', 'body'] as const) snapshot.layout[key].y = fresh[key].y;
     } else if (kind === 'text') {
       const script = await claudeScripts.rewrite(
         current.project,
@@ -938,7 +944,6 @@ export async function reviseStory(
       };
       setSetting('demoImageOperations', String(Number(setting('demoImageOperations', '0')) + 1));
     }
-    if (prompt) remember(story.projectId, 'feedback', `${kind}: ${prompt.slice(0, 300)}`);
     const version = appendVersion(storyId, snapshot, userId, expected);
     run("UPDATE operations SET status='complete' WHERE id=?", operationId);
     return version;

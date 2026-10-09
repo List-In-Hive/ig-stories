@@ -78,7 +78,7 @@ export async function startAnimation(versionId: string, snapshot: Snapshot, prom
   if (!aiVideoConfigured())
     throw new AppError('Add RUNWAYML_API_SECRET to the environment to animate with AI.');
   const current = animation(versionId);
-  if (current?.status === 'running') return current;
+  if (current?.status === 'running' && !stale(current)) return current;
   // Runway gets the clean background (no text) as the first frame.
   const image = await sharp(renderPng(snapshot, ['background']))
     .resize(720, 1280)
@@ -102,34 +102,47 @@ export async function startAnimation(versionId: string, snapshot: Snapshot, prom
 }
 
 type Task = { status: string; output?: string[]; failure?: string };
-const finishing = new Map<string, Promise<Animation>>();
+// Runway clips finish in a few minutes; a task still "running" after 15 can be started again.
+const stale = (value: Animation) => Date.now() - Date.parse(value.startedAt) > 15 * 60_000;
+const checking = new Map<string, Promise<Animation | null>>();
 // The editor polls this while Runway works; the finished clip gets the story text on top.
-export async function checkAnimation(versionId: string, snapshot: Snapshot) {
+export function checkAnimation(versionId: string, snapshot: Snapshot) {
+  // One check per version at a time, so a finished clip is rendered and stored once.
+  if (!checking.has(versionId))
+    checking.set(
+      versionId,
+      check(versionId, snapshot).finally(() => checking.delete(versionId)),
+    );
+  return checking.get(versionId)!;
+}
+async function check(versionId: string, snapshot: Snapshot): Promise<Animation | null> {
   const current = animation(versionId);
   if (!current || current.status !== 'running' || !current.taskId) return current;
-  if (finishing.has(versionId)) return finishing.get(versionId)!;
-  const task = await runway<Task>(`/tasks/${encodeURIComponent(current.taskId)}`);
+  let task: Task;
+  try {
+    task = await runway<Task>(`/tasks/${encodeURIComponent(current.taskId)}`);
+  } catch (error) {
+    if (!stale(current)) throw error;
+    return save(versionId, { ...current, status: 'failed', error: (error as Error).message });
+  }
   if (['FAILED', 'CANCELLED'].includes(task.status))
     return save(versionId, {
       ...current,
       status: 'failed',
       error: task.failure || 'Runway could not animate this story. Try again or change the prompt.',
     });
-  if (task.status !== 'SUCCEEDED' || !task.output?.[0]) return current;
-  const done = (async () => {
-    try {
-      const response = await fetcher(task.output![0]);
-      if (!response.ok) throw new AppError('The AI video could not be downloaded. Try again.');
-      const clip = Buffer.from(await response.arrayBuffer());
-      const video = await renderVideo(snapshot, { clip, seconds: AI_VIDEO_SECONDS });
-      const assetId = localStorage.put(video, 'video/mp4', 'story-video', 1080, 1920);
-      return save(versionId, { ...current, status: 'ready', assetId });
-    } catch (error) {
-      return save(versionId, { ...current, status: 'failed', error: (error as Error).message });
-    } finally {
-      finishing.delete(versionId);
-    }
-  })();
-  finishing.set(versionId, done);
-  return done;
+  if (task.status !== 'SUCCEEDED' || !task.output?.[0])
+    return stale(current)
+      ? save(versionId, { ...current, status: 'failed', error: 'Runway took too long. Try again.' })
+      : current;
+  try {
+    const response = await fetcher(task.output![0]);
+    if (!response.ok) throw new AppError('The AI video could not be downloaded. Try again.');
+    const clip = Buffer.from(await response.arrayBuffer());
+    const video = await renderVideo(snapshot, { clip, seconds: AI_VIDEO_SECONDS });
+    const assetId = localStorage.put(video, 'video/mp4', 'story-video', 1080, 1920);
+    return save(versionId, { ...current, status: 'ready', assetId });
+  } catch (error) {
+    return save(versionId, { ...current, status: 'failed', error: (error as Error).message });
+  }
 }

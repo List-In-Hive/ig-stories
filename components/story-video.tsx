@@ -37,6 +37,11 @@ export default function StoryVideo({
   const [prompt, setPrompt] = useState('');
   const [ai, setAi] = useState<Animation>(null);
   const urlRef = useRef('');
+  // The workspace re-renders every few seconds with a new notify; the poll timer must not reset.
+  const notifyRef = useRef(notify);
+  useEffect(() => {
+    notifyRef.current = notify;
+  }, [notify]);
   const show = (file: File) => {
     if (urlRef.current) URL.revokeObjectURL(urlRef.current);
     urlRef.current = URL.createObjectURL(file);
@@ -57,10 +62,10 @@ export default function StoryVideo({
     const timer = setInterval(() => {
       api<Animation>('/api/command', { action: 'animation', versionId })
         .then(setAi)
-        .catch((error) => notify((error as Error).message));
+        .catch((error) => notifyRef.current((error as Error).message));
     }, 6000);
     return () => clearInterval(timer);
-  }, [ai?.status, versionId, notify]);
+  }, [ai?.status, versionId]);
 
   async function make(kind: string) {
     setBusy(kind);
