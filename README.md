@@ -82,7 +82,7 @@ The app needs an always-on Node host with a persistent disk (not serverless). Th
 
 - one service deployed from this repository; Railway runs `npm ci`, `npm run build`, and `npm start` (web app and worker together) on Node 24.11 or newer, as set in `engines`,
 - a volume mounted at `/data`, with `DATA_DIR=/data`,
-- environment variables: `ADMIN_PASSWORD`, `DATA_DIR`, `TIME_ZONE`, `PROVIDER_MODE=live`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, and optionally the model variables from `.env.example`,
+- environment variables: `ADMIN_PASSWORD`, `DATA_DIR`, `TIME_ZONE`, `PROVIDER_MODE=live`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, optionally `PIXABAY_API_KEY` for stock photos, and optionally the model variables from `.env.example`,
 - a generated public domain.
 
 `npm start` listens on all interfaces and on `PORT` (Railway sets it). Set `HOST=127.0.0.1` to keep a production start private to one machine.
