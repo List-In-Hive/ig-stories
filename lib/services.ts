@@ -22,11 +22,21 @@ import {
   type PlanContext,
   claudeScripts,
   openAIImages,
+  finishPhoto,
   missingLiveKeys,
   CLAUDE_MODEL,
   OPENAI_IMAGE_MODEL,
 } from './ai';
 import { localStorage, readFamily } from './storage';
+import {
+  downloadStock,
+  getStock,
+  searchStock,
+  stockConfigured,
+  stockName,
+  type StockPhoto,
+} from './stock';
+import { DEFAULT_TEXT, normalizePalette } from './palette';
 import { defaultLayout, validateComposition, snapshotFonts } from './composition';
 import type {
   AppState,
@@ -34,7 +44,9 @@ import type {
   Project,
   Repository,
   Run,
+  Layout,
   Script,
+  PhotoSource,
   Snapshot,
   Story,
   User,
@@ -45,10 +57,22 @@ const text = z.string().max(5000).default('');
 const color = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Use a six-digit hex color.');
 const FONTS = ['Inter', 'Lora', 'Montserrat', 'Brand'] as const;
 export const projectSchema = z.object({
-  name: z.string().trim().min(2).max(80),
-  industry: z.string().trim().min(2).max(80),
+  name: z
+    .string()
+    .trim()
+    .min(2, 'Enter the project name (at least 2 characters).')
+    .max(80, 'Keep the project name under 80 characters.'),
+  industry: z
+    .string()
+    .trim()
+    .min(2, 'Enter the industry (at least 2 characters).')
+    .max(80, 'Keep the industry short, under 80 characters (e.g. Coffee & café).'),
   status: z.enum(['active', 'paused', 'archived']).default('active'),
-  description: z.string().trim().min(10).max(3000),
+  description: z
+    .string()
+    .trim()
+    .min(10, 'Describe the business in at least 10 characters.')
+    .max(3000, 'Keep the description under 3000 characters.'),
   services: text,
   audience: text,
   instagram: z
@@ -59,7 +83,7 @@ export const projectSchema = z.object({
     )
     .default(''),
   visualDirection: text,
-  colors: z.array(color).length(3),
+  colors: z.array(color).min(3).max(5).transform(normalizePalette),
   font: z.enum(FONTS).default('Inter'),
   brandFont: z
     .object({
@@ -79,6 +103,8 @@ export const projectSchema = z.object({
     .regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Use a 24-hour time such as 08:00.')
     .default(DEFAULT_GENERATE_AT),
   logoId: z.string().nullable().default(null),
+  photoIds: z.array(z.string()).max(60, 'Keep up to 60 brand photos.').default([]),
+  stockPhotos: z.boolean().default(true),
   website: z
     .string()
     .refine((v) => !v || /^https?:\/\//.test(v), 'Use a full website URL.')
@@ -98,12 +124,14 @@ const layerSchema = z.object({
   font: z.enum(FONTS),
   align: z.enum(['left', 'center', 'right']),
   visible: z.boolean(),
+  bold: z.boolean().optional(),
+  uppercase: z.boolean().optional(),
+  lineHeight: z.number().min(0.8).max(2.5).optional(),
+  shadow: z.boolean().optional(),
 });
 export const layoutSchema = z.object({
   headline: layerSchema,
   body: layerSchema,
-  cta: layerSchema,
-  contact: layerSchema,
   logo: z.object({
     x: z.number().min(0).max(1080),
     y: z.number().min(0).max(1920),
@@ -116,7 +144,6 @@ export const scriptSchema = z.object({
   topic: z.string().min(1).max(180),
   headline: z.string().min(1).max(500),
   body: z.string().max(5000),
-  cta: z.string().max(500),
   visual: z.string().max(3000),
   sources: z.array(z.string()).default([]),
 });
@@ -135,6 +162,7 @@ export function listProjects() {
     webResearch: true,
     generateAt: DEFAULT_GENERATE_AT,
     ...JSON.parse(r.data),
+    colors: normalizePalette(JSON.parse(r.data).colors),
     id: r.id,
     name: r.name,
     industry: r.industry,
@@ -161,6 +189,11 @@ export function saveProject(input: unknown, projectId?: string) {
     if (parsed.logoId) {
       const asset = one<{ kind: string }>('SELECT kind FROM assets WHERE id=?', parsed.logoId);
       if (!asset || asset.kind !== 'logo') throw new AppError('Choose a valid uploaded logo.');
+    }
+    for (const photoId of parsed.photoIds) {
+      const asset = one<{ kind: string }>('SELECT kind FROM assets WHERE id=?', photoId);
+      if (!asset || asset.kind !== 'brand-photo')
+        throw new AppError('Upload the brand photos again.');
     }
     for (const file of [parsed.brandFont?.regular, parsed.brandFont?.bold]) {
       if (!file) continue;
@@ -197,6 +230,7 @@ export function saveProject(input: unknown, projectId?: string) {
       parsed.logoId,
       parsed.brandFont?.regular.id ?? null,
       parsed.brandFont?.bold?.id ?? null,
+      ...parsed.photoIds,
     ]);
     if (previous && previous.allowEngagement !== parsed.allowEngagement)
       run(
@@ -332,10 +366,39 @@ function planContext(project: Project, at = new Date()): PlanContext {
       .slice(0, 8)
       .map((s) => `${s.version.data.script.topic}: ${s.version.data.script.headline}`),
     feedback: JSON.parse(setting(`taste:feedback:${project.id}`, '[]')),
+    ...recentLooks(project.id),
   };
 }
-async function generateScript(project: Project, slot: number, seed: number, recent: string[]) {
-  if (liveMode()) return (await claudeScripts.plan(project, 1, recent, planContext(project)))[0];
+// About a week of this brand's stories, newest first, so new drafts can avoid repeating them.
+const RECENT_LIMIT = 28;
+function recentScripts(projectId: string) {
+  return listStories()
+    .filter((s) => s.projectId === projectId)
+    .slice(0, RECENT_LIMIT)
+    .map((s) => s.version.data.script);
+}
+function recentTopics(projectId: string) {
+  return recentScripts(projectId).map((s) => s.topic);
+}
+function recentLooks(projectId: string) {
+  const scripts = recentScripts(projectId);
+  return {
+    recentVisuals: scripts.slice(0, 12).map((s) => s.visual.slice(0, 160)),
+    recentLooks: scripts.slice(0, 8).flatMap((s) => (s.look ? [s.look] : [])),
+    recentPlacements: scripts.flatMap((s) => (s.placement ? [s.placement] : [])).slice(0, 4),
+  };
+}
+async function generateScript(
+  project: Project,
+  slot: number,
+  seed: number,
+  recent: string[],
+  direction?: string,
+) {
+  if (liveMode())
+    return (
+      await claudeScripts.plan(project, 1, recent, { ...planContext(project), direction })
+    )[0];
   return demoScript.generate(project, slot, seed, recent);
 }
 function providerDetails() {
@@ -346,14 +409,17 @@ function providerDetails() {
       }
     : { provider: 'demo' as const, label: 'Demo content · Sample artwork' };
 }
-export async function makeSnapshot(project: Project, slot: number, seed: number, manual?: Script) {
-  const recent = listStories()
-    .filter((s) => s.projectId === project.id)
-    .slice(0, 12)
-    .map((s) => s.version.data.script.topic);
-  const script = manual || (await generateScript(project, slot, seed, recent));
-  assertEngagementAllowed(project, script);
-  const image = await imageProvider().generate(project, script, seed);
+export async function makeSnapshot(
+  project: Project,
+  slot: number,
+  seed: number,
+  manual?: Script,
+  direction?: string,
+) {
+  const recent = recentTopics(project.id);
+  const written = manual || (await generateScript(project, slot, seed, recent, direction));
+  assertEngagementAllowed(project, written);
+  const { image, script } = await paint(project, written, seed);
   return transaction(() => {
     const latestProject = getProject(project.id);
     if (latestProject.updatedAt !== project.updatedAt)
@@ -377,6 +443,113 @@ export async function makeSnapshot(project: Project, slot: number, seed: number,
     registerProjectAssets(project.id, snapshotAssetIds(snapshot));
     return snapshot;
   });
+}
+// Real photos make a feed feel alive, so half of each day's stories use the brand's own photos
+// or Pexels stock when they are available; the rest stay AI artwork. The pattern shifts daily.
+export function assignSources(project: Project, scripts: Script[], day: string) {
+  const real: PhotoSource[] = [
+    ...((project.photoIds ?? []).length ? (['library'] as const) : []),
+    ...(project.stockPhotos !== false && stockConfigured() ? (['stock'] as const) : []),
+  ];
+  if (!real.length) return scripts;
+  const shift = Number(day.slice(-2)) || 0;
+  let used = 0;
+  return scripts.map((script, i) => {
+    if ((i + shift) % 2 === 1) return { ...script, source: 'ai' as const };
+    return { ...script, source: real[(used++ + shift) % real.length] };
+  });
+}
+// Remembers which photos a brand used, newest first, so the next ones are different.
+function usedPhotos(kind: 'stock' | 'library', projectId: string) {
+  return JSON.parse(setting(`photos:${kind}:${projectId}`, '[]')) as string[];
+}
+function markUsed(kind: 'stock' | 'library', projectId: string, photoId: string) {
+  setSetting(
+    `photos:${kind}:${projectId}`,
+    JSON.stringify(
+      [photoId, ...usedPhotos(kind, projectId).filter((p) => p !== photoId)].slice(0, 300),
+    ),
+  );
+}
+function stockCredit(photo: StockPhoto) {
+  return { name: photo.photographer, url: photo.photographerUrl, photoUrl: photo.url };
+}
+async function stockBackground(
+  project: Project,
+  script: Script,
+  query: string,
+  photo?: StockPhoto,
+) {
+  if (!photo) {
+    const used = usedPhotos('stock', project.id);
+    const results = await searchStock(query);
+    photo = results.find((p) => !used.includes(String(p.id))) ?? results[0];
+  }
+  if (!photo) throw new AppError(`No stock photos found for “${query}”.`);
+  const next = { ...script, source: 'stock' as const, credit: stockCredit(photo) };
+  const image = await finishPhoto(await downloadStock(photo), project, next);
+  markUsed('stock', project.id, String(photo.id));
+  return { image, script: next };
+}
+async function libraryBackground(project: Project, script: Script, photoId?: string) {
+  const photos = project.photoIds ?? [];
+  if (!photoId) {
+    const used = usedPhotos('library', project.id);
+    // The least recently used photo: never used first, then the oldest use.
+    photoId = [...photos].sort((a, b) => {
+      const ia = used.indexOf(a),
+        ib = used.indexOf(b);
+      return (ia === -1 ? Infinity : ia) > (ib === -1 ? Infinity : ib) ? -1 : 1;
+    })[0];
+  }
+  if (!photoId || !photos.includes(photoId)) throw new AppError('Choose one of the brand photos.');
+  const next: Script = { ...script, source: 'library' };
+  delete next.credit;
+  const image = await finishPhoto(localStorage.read(photoId).bytes, project, next);
+  markUsed('library', project.id, photoId);
+  return { image, script: next };
+}
+// Paints a story background from its assigned source, falling back to AI artwork when a real
+// photo is unavailable so a run never fails over a missing stock result.
+async function paint(project: Project, script: Script, seed: number, query?: string) {
+  try {
+    if (script.source === 'library') return await libraryBackground(project, script);
+    if (script.source === 'stock' && stockConfigured())
+      return await stockBackground(project, script, query || script.photoSearch || script.topic);
+  } catch (error) {
+    console.warn(`Real photo unavailable, using AI artwork: ${(error as Error).message}`);
+  }
+  const next: Script = { ...script };
+  if (next.source) next.source = 'ai';
+  delete next.credit;
+  return { image: await imageProvider().generate(project, next, seed), script: next };
+}
+export const findStock = (query: string) => searchStock(query);
+// Swaps a story's background for a chosen stock photo or brand photo; the text is kept.
+export async function swapPhoto(
+  storyId: string,
+  expected: string,
+  choice: { stock?: string; library?: string },
+  userId: string,
+) {
+  const story = checkVersion(storyId, expected);
+  const project = getProject(story.projectId);
+  const current = story.version.data;
+  if (choice.stock && project.stockPhotos === false)
+    throw new AppError('Stock photos are turned off for this project.');
+  const painted = choice.stock
+    ? await stockBackground(project, current.script, '', await getStock(choice.stock))
+    : await libraryBackground(project, current.script, choice.library);
+  return appendVersion(
+    storyId,
+    {
+      ...structuredClone(current),
+      script: painted.script,
+      backgroundId: storeProjectBackground(story.projectId, painted.image),
+    },
+    userId,
+    expected,
+  );
 }
 function storeProjectBackground(projectId: string, image: { bytes: Buffer; mime: string }) {
   return transaction(() => {
@@ -571,11 +744,8 @@ async function plannedScript(runId: string, slot: number, project: Project) {
     slot,
   );
   if (!row) {
-    const recent = listStories()
-      .filter((s) => s.projectId === project.id)
-      .slice(0, 10)
-      .map((s) => s.version.data.script.topic);
-    const planned: Script[] = [];
+    const recent = recentTopics(project.id);
+    let planned: Script[] = [];
     if (liveMode())
       planned.push(...(await claudeScripts.plan(project, 4, recent, planContext(project))));
     else
@@ -584,8 +754,9 @@ async function plannedScript(runId: string, slot: number, project: Project) {
           ...recent,
           ...planned.map((s) => s.topic),
         ]);
-        planned.push(script);
+        planned.push({ ...script, photoSearch: script.topic });
       }
+    planned = assignSources(project, planned, businessDate(new Date()));
     transaction(() => {
       planned.forEach((script, i) =>
         run(
@@ -686,20 +857,22 @@ export function saveStory(storyId: string, expected: string, input: unknown, use
     ...snapshot.script,
     headline: layout.headline.text,
     body: layout.body.text,
-    cta: layout.cta.text,
   };
-  if (
-    !hasEngagement({ headline: layout.headline.text, body: layout.body.text, cta: layout.cta.text })
-  )
+  if (!hasEngagement({ headline: layout.headline.text, body: layout.body.text }))
     delete snapshot.script.kind;
   return appendVersion(storyId, snapshot, userId, expected);
 }
 export async function reviseStory(
   storyId: string,
   expected: string,
-  kind: 'image' | 'idea',
+  kind: 'image' | 'idea' | 'text',
   userId: string,
+  prompt = '',
 ) {
+  prompt = prompt.trim();
+  if (prompt.length > 2000) throw new AppError('Keep the prompt under 2,000 characters.');
+  if (kind === 'text' && !liveMode())
+    throw new AppError('Rewriting text from a prompt needs Live AI. Switch it on in Settings.');
   const story = checkVersion(storyId, expected);
   const operationId = id();
   run(
@@ -717,18 +890,56 @@ export async function reviseStory(
     if (seed % 200 === current.seed % 200) seed++;
     let snapshot: Snapshot;
     if (kind === 'idea') {
-      snapshot = await makeSnapshot(getProject(story.projectId), 0, seed);
-      if (snapshot.script.topic === current.script.topic) {
-        snapshot = await makeSnapshot(getProject(story.projectId), 1, seed + 1);
+      const project = getProject(story.projectId);
+      snapshot = await makeSnapshot(project, 0, seed, undefined, prompt || undefined);
+      if (!prompt && snapshot.script.topic === current.script.topic) {
+        snapshot = await makeSnapshot(project, 1, seed + 1);
       }
+      const fresh = snapshot.layout;
+      snapshot.layout = withText(current.layout, fresh);
+      // The new artwork leaves room for text on its own side, so the text moves there too.
+      if (snapshot.script.placement !== current.script.placement)
+        for (const key of ['headline', 'body'] as const) snapshot.layout[key].y = fresh[key].y;
+    } else if (kind === 'text') {
+      const script = await claudeScripts.rewrite(
+        current.project,
+        current.script,
+        prompt || 'Write a fresh version of this story with a different hook.',
+      );
+      snapshot = {
+        ...structuredClone(current),
+        script,
+        layout: withText(current.layout, {
+          ...current.layout,
+          headline: { ...current.layout.headline, text: script.headline },
+          body: { ...current.layout.body, text: script.body },
+        }),
+      };
+    } else if (current.script.source === 'stock' || current.script.source === 'library') {
+      // A real-photo story gets another real photo: the next stock match or brand photo.
+      const painted = await paint(getProject(story.projectId), current.script, seed, prompt);
+      snapshot = {
+        ...structuredClone(current),
+        script: painted.script,
+        backgroundId: storeProjectBackground(story.projectId, painted.image),
+        seed,
+      };
     } else {
-      const image = await imageProvider().generate(current.project, current.script, seed);
+      const visual =
+        prompt && liveMode()
+          ? await claudeScripts.revisualize(current.project, current.script, prompt)
+          : prompt
+            ? `${current.script.visual}\nAdmin prompt: ${prompt}`
+            : current.script.visual;
+      const script = { ...current.script, visual };
+      const image = await imageProvider().generate(current.project, script, seed);
       snapshot = {
         ...structuredClone(current),
         ...providerDetails(),
+        script,
         backgroundId: storeProjectBackground(story.projectId, image),
         seed,
-        prompt: current.script.visual,
+        prompt: visual,
       };
       setSetting('demoImageOperations', String(Number(setting('demoImageOperations', '0')) + 1));
     }
@@ -743,6 +954,14 @@ export async function reviseStory(
     );
     throw error;
   }
+}
+// New copy keeps the admin's design: fonts, colors, sizes and positions stay as they were.
+function withText(design: Layout, next: Layout): Layout {
+  const layout = structuredClone(design);
+  for (const key of ['headline', 'body'] as const) {
+    layout[key] = { ...design[key], text: next[key].text, visible: !!next[key].text };
+  }
+  return layout;
 }
 export async function requestChanges(
   storyId: string,
@@ -762,7 +981,6 @@ export async function requestChanges(
     snapshot.script = script;
     snapshot.layout.headline.text = script.headline;
     snapshot.layout.body.text = script.body;
-    snapshot.layout.cta.text = script.cta;
     applied = true;
   } else if (liveMode() && target === 'visual') {
     const visual = await claudeScripts.revisualize(snapshot.project, snapshot.script, feedback);
@@ -785,7 +1003,7 @@ export async function requestChanges(
       applied = true;
     }
   } else if (target === 'layout' && /center/.test(normalized)) {
-    for (const layer of [snapshot.layout.headline, snapshot.layout.body, snapshot.layout.cta]) {
+    for (const layer of [snapshot.layout.headline, snapshot.layout.body]) {
       if (layer.align !== 'center') {
         layer.align = 'center';
         applied = true;
@@ -793,8 +1011,8 @@ export async function requestChanges(
     }
   } else if (target === 'visual' && /warm|cool/.test(normalized)) {
     snapshot.project.colors = /warm/.test(normalized)
-      ? ['#f3dbc5', '#c28660', '#f9eee4']
-      : ['#d9e9ef', '#6599ae', '#edf5f6'];
+      ? ['#f3dbc5', DEFAULT_TEXT, '#c28660', '#f9eee4']
+      : ['#d9e9ef', DEFAULT_TEXT, '#6599ae', '#edf5f6'];
     const seed = seedFrom(id());
     const image = await demoImage.generate(snapshot.project, snapshot.script, seed);
     snapshot = {
@@ -927,6 +1145,9 @@ export function state(user: User): AppState {
       missingKeys: missingLiveKeys(),
       automationEnabled: setting('automationEnabled', 'true') === 'true',
       timeZone: timeZone(),
+      exportFormat:
+        setting('exportFormat', process.env.EXPORT_FORMAT || 'jpeg') === 'png' ? 'png' : 'jpeg',
+      stock: stockConfigured() ? stockName() : null,
     },
     worker: {
       online: !!heartbeat && Date.now() - Date.parse(heartbeat) < 45000,

@@ -6,3 +6,6 @@ data/
 *.tsbuildinfo
 coverage/
 playwright-report/
+
+# Editor settings (WebStorm / IntelliJ)
+.idea/

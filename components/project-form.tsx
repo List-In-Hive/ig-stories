@@ -1,8 +1,11 @@
 'use client';
 import { useState } from 'react';
-import { Upload, Check, Sparkles } from 'lucide-react';
+import { Upload, Check, Sparkles, X } from 'lucide-react';
 import type { BrandFont, FontName, Project } from '@/lib/types';
+import { PALETTE_ROLES, contrast, normalizePalette } from '@/lib/palette';
 import { api, Button, Field, Modal } from './ui';
+// Photos only guide the style, so a 1024 px copy (longest side) is plenty and keeps 20 uploads light.
+const MAX_PHOTOS = 20;
 const defaults = {
   name: '',
   industry: '',
@@ -12,7 +15,7 @@ const defaults = {
   audience: '',
   instagram: '',
   visualDirection: '',
-  colors: ['#ece6f4', '#9d88be', '#f5f1fa'],
+  colors: ['#ece6f4', '#172420', '#9d88be', '#f5f1fa'],
   font: 'Inter' as FontName,
   brandFont: null as BrandFont | null,
   rules: 'Use clear, thoughtful English. Use only approved project facts.',
@@ -22,6 +25,8 @@ const defaults = {
   generateAt: '08:00',
   webResearch: true,
   logoId: null as string | null,
+  photoIds: [] as string[],
+  stockPhotos: true,
   website: '',
   email: '',
   phone: '',
@@ -30,14 +35,24 @@ const defaults = {
 };
 export default function ProjectForm({
   project,
+  stock,
   onClose,
   onSave,
 }: {
   project?: Project;
+  stock?: string | null;
   onClose: () => void;
   onSave: (project: typeof defaults, projectId?: string) => Promise<void>;
 }) {
-  const [form, setForm] = useState({ ...defaults, ...project });
+  const start = {
+    ...defaults,
+    ...project,
+    photoIds: project?.photoIds ?? [],
+    stockPhotos: project?.stockPhotos ?? true,
+    colors: normalizePalette(project?.colors ?? defaults.colors),
+  };
+  const [form, setForm] = useState(start);
+  const [initial] = useState(() => JSON.stringify(start));
   const [tab, setTab] = useState('Brief');
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -56,11 +71,11 @@ export default function ProjectForm({
   }
   // Phone photos are shrunk in the browser before upload to keep the request light.
   async function addPhotos(files: FileList | null) {
-    const picked = Array.from(files || []).slice(0, 10 - photos.length);
+    const picked = Array.from(files || []).slice(0, MAX_PHOTOS - photos.length);
     const encoded = await Promise.all(
       picked.map(async (file) => {
         const bitmap = await createImageBitmap(file);
-        const scale = Math.min(1, 1280 / Math.max(bitmap.width, bitmap.height));
+        const scale = Math.min(1, 1024 / Math.max(bitmap.width, bitmap.height));
         const canvas = document.createElement('canvas');
         canvas.width = Math.round(bitmap.width * scale);
         canvas.height = Math.round(bitmap.height * scale);
@@ -68,7 +83,7 @@ export default function ProjectForm({
         return canvas.toDataURL('image/jpeg', 0.8);
       }),
     );
-    setPhotos((current) => [...current, ...encoded].slice(0, 10));
+    setPhotos((current) => [...current, ...encoded].slice(0, MAX_PHOTOS));
   }
   // Claude reads the website and fills the brief; nothing is saved until the admin reviews it.
   async function draft() {
@@ -88,11 +103,27 @@ export default function ProjectForm({
       });
       setForm((f) => ({ ...f, ...brief, logoId: f.logoId, status: f.status }));
       setDrafted(true);
+      if (!brief.name || !brief.description)
+        setQuickError(
+          'The AI could not find the business name or description. Add the website, or type them below.',
+        );
     } catch (e) {
       setQuickError((e as Error).message);
     } finally {
       setDrafting(false);
     }
+  }
+  // A stray click on the backdrop or Escape must not throw away a running AI draft or unsaved edits.
+  function close() {
+    if (drafting || busy || uploading || fontUploading) return;
+    const changed = JSON.stringify(form) !== initial || photos.length > 0;
+    if (changed && !window.confirm('Close without saving? Your changes will be lost.')) return;
+    onClose();
+  }
+  function draftOnEnter(e: React.KeyboardEvent) {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    if (!drafting) void draft();
   }
   function update(key: string, value: unknown) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -121,6 +152,28 @@ export default function ProjectForm({
       setFontUploading(false);
     }
   }
+  const [photoUploading, setPhotoUploading] = useState(0);
+  async function uploadPhotos(files: File[]) {
+    const room = 60 - form.photoIds.length;
+    if (files.length > room) setError(`Up to 60 brand photos. Added the first ${room}.`);
+    else setError('');
+    for (const file of files.slice(0, Math.max(0, room))) {
+      setPhotoUploading((n) => n + 1);
+      try {
+        const body = new FormData();
+        body.append('file', file);
+        body.append('kind', 'photo');
+        const response = await fetch('/api/assets', { method: 'POST', body });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error);
+        setForm((f) => ({ ...f, photoIds: [...f.photoIds, data.id] }));
+      } catch (e) {
+        setError((e as Error).message);
+      } finally {
+        setPhotoUploading((n) => n - 1);
+      }
+    }
+  }
   async function upload(file?: File) {
     if (!file) return;
     setUploading(true);
@@ -140,6 +193,17 @@ export default function ProjectForm({
   }
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    // The required fields live on the Brief tab; point there instead of failing on the server.
+    const missing = [
+      form.name.trim().length < 2 && 'project name',
+      form.industry.trim().length < 2 && 'industry',
+      form.description.trim().length < 10 && 'business description (10+ characters)',
+    ].filter(Boolean);
+    if (missing.length) {
+      setTab('Brief');
+      setError(`Fill in the ${missing.join(', ')} on the Brief tab.`);
+      return;
+    }
     setBusy(true);
     setError('');
     try {
@@ -163,6 +227,7 @@ export default function ProjectForm({
       <input
         value={String(form[key] || '')}
         placeholder={placeholder}
+        maxLength={key === 'name' || key === 'industry' ? 80 : undefined}
         onChange={(e) => update(key, e.target.value)}
       />
     );
@@ -170,12 +235,12 @@ export default function ProjectForm({
     <Modal
       title={project ? 'Edit project' : 'Create a project'}
       description="A good brief makes better stories. Add the facts your team can confidently use."
-      onClose={onClose}
+      onClose={close}
       wide
     >
       <form onSubmit={submit}>
         <div className="tabs">
-          {['Brief', 'Branding', 'Guidelines', 'Contact'].map((t) => (
+          {['Brief', 'Branding', 'Photos', 'Guidelines', 'Contact'].map((t) => (
             <button
               type="button"
               className={tab === t ? 'active' : ''}
@@ -196,21 +261,25 @@ export default function ProjectForm({
                       <Sparkles size={16} /> Quick start with AI
                     </strong>
                     <small>
-                      {drafted
-                        ? 'Brief drafted. Check every tab, then create the project.'
-                        : 'Enter the Instagram handle and website, and add up to 10 photos the brand has posted. Claude studies them and fills in the brief, style, palette, and contacts for you to review. Colors and fonts you set on the Branding tab are kept.'}
+                      {drafting
+                        ? 'ChatGPT is studying the photos while Claude reads the website. This usually takes 20–60 seconds; keep this window open.'
+                        : drafted
+                          ? 'Brief drafted. Check every tab, then create the project.'
+                          : 'Enter the Instagram handle and website, and add up to 20 photos the brand has posted. ChatGPT studies the photos for style and palette while Claude researches the business, at the same time. Review the result before creating the project; colors and fonts you set on the Branding tab are kept.'}
                     </small>
                   </div>
                   <div className="quick-start-fields">
                     <input
                       value={quick.handle}
                       placeholder="@instagram_handle"
+                      onKeyDown={draftOnEnter}
                       autoCapitalize="none"
                       onChange={(e) => setQuick((q) => ({ ...q, handle: e.target.value }))}
                     />
                     <input
                       value={quick.website}
                       placeholder="brand-website.com"
+                      onKeyDown={draftOnEnter}
                       inputMode="url"
                       autoCapitalize="none"
                       onChange={(e) => setQuick((q) => ({ ...q, website: e.target.value }))}
@@ -236,7 +305,7 @@ export default function ProjectForm({
                         <img src={src} alt="" />
                       </button>
                     ))}
-                    {photos.length < 10 && (
+                    {photos.length < MAX_PHOTOS && (
                       <label className="btn ghost small">
                         <Upload size={14} />
                         {photos.length ? 'Add more' : 'Add post photos'}
@@ -361,13 +430,17 @@ export default function ProjectForm({
                   </span>
                 </div>
               </Field>
-              <Field label="Brand palette">
+              <Field
+                label="Brand palette"
+                hint="Background and accent guide the artwork; text colors the story copy. Extra is optional."
+              >
                 <div className="color-fields">
                   {form.colors.map((color, i) => (
                     <div key={i}>
+                      <span className="color-role">{PALETTE_ROLES[i]}</span>
                       <input
                         type="color"
-                        aria-label={`Brand color ${i + 1}`}
+                        aria-label={`${PALETTE_ROLES[i]} color`}
                         value={color}
                         onChange={(e) =>
                           setStyle(
@@ -377,7 +450,7 @@ export default function ProjectForm({
                         }
                       />
                       <HexInput
-                        label={`Brand color ${i + 1} hex code`}
+                        label={`${PALETTE_ROLES[i]} color hex code`}
                         value={color}
                         onChange={(value) =>
                           setStyle(
@@ -386,9 +459,33 @@ export default function ProjectForm({
                           )
                         }
                       />
+                      {i === 4 && (
+                        <button
+                          type="button"
+                          className="text-button"
+                          onClick={() => setStyle('colors', form.colors.slice(0, 4))}
+                        >
+                          Remove
+                        </button>
+                      )}
                     </div>
                   ))}
+                  {form.colors.length < 5 && (
+                    <button
+                      type="button"
+                      className="btn ghost small"
+                      onClick={() => setStyle('colors', [...form.colors, form.colors[3]])}
+                    >
+                      + Extra color
+                    </button>
+                  )}
                 </div>
+                {contrast(form.colors[1], form.colors[0]) < 4.5 && (
+                  <small className="soft-note">
+                    Text on this background is hard to read, so stories will use a darker or lighter
+                    text color automatically.
+                  </small>
+                )}
               </Field>
               <Field label="Default story font">
                 <select value={form.font} onChange={(e) => setStyle('font', e.target.value)}>
@@ -482,6 +579,64 @@ export default function ProjectForm({
               </Field>
             </>
           )}
+          {tab === 'Photos' && (
+            <>
+              <Field
+                label="Brand photos"
+                group
+                hint="Your own photos (products, place, team, work). About half of each day's stories use a real photo; these come first. JPEG, PNG, or WebP, up to 60."
+              >
+                <div className="photo-library">
+                  {form.photoIds.map((photoId) => (
+                    <div key={photoId} className="photo-thumb">
+                      <img alt="Brand photo" src={`/api/assets/${photoId}`} />
+                      <button
+                        type="button"
+                        aria-label="Remove photo"
+                        onClick={() =>
+                          update(
+                            'photoIds',
+                            form.photoIds.filter((p) => p !== photoId),
+                          )
+                        }
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ))}
+                  <label className="photo-add">
+                    <Upload size={20} />
+                    <span>{photoUploading ? 'Uploading…' : 'Add photos'}</span>
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/png,image/jpeg,image/webp"
+                      aria-label="Add brand photos"
+                      onChange={(e) => {
+                        void uploadPhotos([...(e.target.files ?? [])]);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                </div>
+              </Field>
+              <label className="switch-row">
+                <input
+                  type="checkbox"
+                  checked={form.stockPhotos}
+                  onChange={(e) => update('stockPhotos', e.target.checked)}
+                />
+                <span>
+                  <strong>Use free stock photos</strong>
+                  <small>
+                    {stock
+                      ? `Real photos from ${stock} matched to each story, mixed with your photos and AI artwork.`
+                      : 'Add PIXABAY_API_KEY to .env (free at pixabay.com/api/docs) to turn this on.'}
+                  </small>
+                </span>
+              </label>
+            </>
+          )}
           {tab === 'Guidelines' && (
             <>
               <Field
@@ -501,8 +656,8 @@ export default function ProjectForm({
           {tab === 'Contact' && (
             <>
               <p className="soft-note">
-                Only non-empty contact fields are included. Their visibility can be changed in the
-                editor.
+                Used by the AI for research and local facts. Contact details are not printed on
+                stories.
               </p>
               <div className="form-grid">
                 {(['website', 'email', 'phone', 'location'] as const).map((key) => (
@@ -521,7 +676,7 @@ export default function ProjectForm({
           )}
         </div>
         <footer className="modal-footer">
-          <Button type="button" variant="secondary" onClick={onClose}>
+          <Button type="button" variant="secondary" onClick={close}>
             Cancel
           </Button>
           <Button type="submit" busy={busy} disabled={uploading || fontUploading}>

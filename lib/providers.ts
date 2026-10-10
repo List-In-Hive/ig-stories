@@ -8,6 +8,7 @@ import type {
   JobRunner,
 } from './types';
 import { AppError } from './errors';
+import { describePalette, palette } from './palette';
 import { setting } from './db';
 import { assertEngagementAllowed } from './engagement';
 export function assertDemo() {
@@ -74,12 +75,7 @@ export const demoScript: ScriptProvider = {
       .split('\n')
       .map((v) => v.trim())
       .filter(Boolean);
-    const service = project.services
-      .split(/[\n,]+/)
-      .map((v) => v.trim())
-      .filter(Boolean);
     const body = facts.length ? facts[(seed + slot) % facts.length] : project.description;
-    const detail = service.length ? service[(seed + slot) % service.length] : project.industry;
     const safeBody =
       body || `Explore the ${project.industry.toLowerCase()} world of ${project.name}.`;
     if (banned.some((b) => safeBody.toLowerCase().includes(b)))
@@ -101,18 +97,15 @@ export const demoScript: ScriptProvider = {
     const script = {
       topic,
       headline,
-      body: kind === 'poll' ? `${safeBody}\n\nA. Tell me more\nB. Show me the details` : safeBody,
-      cta:
+      body:
         kind === 'poll'
-          ? 'Vote for your favorite'
+          ? `${safeBody}\n\nA. Tell me more\nB. Show me the details`
           : kind === 'question'
-            ? 'Reply and let us know'
+            ? `${safeBody} Reply and let us know.`
             : kind === 'dm'
-              ? 'DM us to find out more'
-              : detail
-                ? `Discover ${detail.toLowerCase()}`
-                : 'Discover more',
-      visual: `${project.visualDirection}. Abstract composition in ${project.colors.join(', ')}. No lettering, logo, or contact details. ${project.rules}\n${project.allowEngagement ? 'Question, poll, and DM prompts are allowed.' : 'Informational stories only. No questions, answer choices, voting, replies, or DM prompts.'}`,
+              ? `${safeBody} DM us to find out more.`
+              : safeBody,
+      visual: `${project.visualDirection}. Abstract composition in ${describePalette(project.colors)}. No lettering, logo, or contact details. ${project.rules}\n${project.allowEngagement ? 'Question, poll, and DM prompts are allowed.' : 'Informational stories only. No questions, answer choices, voting, replies, or DM prompts.'}`,
       sources: [],
       ...(kind !== 'standard' ? { kind } : {}),
     };
@@ -123,7 +116,7 @@ export const demoScript: ScriptProvider = {
 export const demoImage: ImageProvider = {
   async generate(project, script, seed) {
     assertDemo();
-    const [a, b, c] = project.colors;
+    const { background: a, accent: b, secondary: c } = palette(project.colors);
     const shift = seed % 200;
     const circle = (x: number, y: number, r: number, color: string, opacity: number) =>
       `<circle cx="${x}" cy="${y}" r="${r}" fill="${xml(color)}" opacity="${opacity}"/>`;

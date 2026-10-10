@@ -48,9 +48,19 @@ Written feedback in the editor is applied by Claude: text feedback rewrites the 
 
 Engagement stories (polls, questions, DM prompts) are only produced for projects with "Allow questions & response prompts" turned on, and the server enforces this on every path.
 
+## Story backgrounds
+
+Each project can hold up to 60 of the brand's own photos (project form, **Photos** tab) and can use free stock photos from Pixabay when `PIXABAY_API_KEY` is set (`PEXELS_API_KEY` also works). When either is available, about half of each day's stories use a real photo, brand photos first and least recently used, and the rest stay AI artwork; the pattern shifts daily. Claude writes a short stock search for every story, and stock photos already used by the brand are skipped. If a real photo cannot be fetched, the story falls back to AI artwork. In the editor, **Find stock photo** and **Brand photos** swap the background while keeping the text and design, and stock photos show the photographer's credit.
+
+## Video stories
+
+An approved story can be saved as an MP4 from the editor's **Video story** box:
+
+- **Make video**: an 8-second 1080×1920 H.264 video with a slow camera move (zoom in, zoom out or pan) on the background while the logo, headline and body fade and ease in. It is rendered with ffmpeg; the `ffmpeg-static` package ships a binary, and `FFMPEG_PATH` overrides it.
+
 ## Adding an account
 
-The project form's **Quick start with AI** takes the Instagram handle, the website, and up to 10 photos the brand has posted. Claude studies the photos (subjects, photo style, lighting, colors, lettering) and the website, then fills in the brief, visual direction, palette, and font for review. Photos are shrunk to 1280 px in the browser before upload.
+The project form's **Quick start with AI** takes the Instagram handle, the website, and up to 20 photos the brand has posted. Two models work in parallel: ChatGPT (`OPENAI_VISION_MODEL`, default `OPENAI_REVIEW_MODEL`) studies the photos for visual direction, palette, font, recurring themes, and any facts written on them, while Claude reads the website (with web search when it is thin) for the description, services, audience, facts, tone, and contacts. The photos decide the look and the research decides the words; nothing is saved until the admin reviews the form. Photos are shrunk to 1024 px in the browser before upload.
 
 Styles set by hand on the Branding tab are kept when the AI fills the brief: the palette (color picker or pasted hex code), the default font (Inter, Lora, Montserrat, or an uploaded brand font), and the visual direction. A brand font is a `.ttf` or `.otf` file, with an optional bold file for headlines; it is frozen into each story so later changes do not alter earlier drafts.
 
@@ -72,7 +82,7 @@ The app needs an always-on Node host with a persistent disk (not serverless). Th
 
 - one service deployed from this repository; Railway runs `npm ci`, `npm run build`, and `npm start` (web app and worker together) on Node 24.11 or newer, as set in `engines`,
 - a volume mounted at `/data`, with `DATA_DIR=/data`,
-- environment variables: `ADMIN_PASSWORD`, `DATA_DIR`, `TIME_ZONE`, `PROVIDER_MODE=live`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, and optionally the model variables from `.env.example`,
+- environment variables: `ADMIN_PASSWORD`, `DATA_DIR`, `TIME_ZONE`, `PROVIDER_MODE=live`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, optionally `PIXABAY_API_KEY` for stock photos, and optionally the model variables from `.env.example`,
 - a generated public domain.
 
 `npm start` listens on all interfaces and on `PORT` (Railway sets it). Set `HOST=127.0.0.1` to keep a production start private to one machine.

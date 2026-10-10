@@ -1498,6 +1498,108 @@ textarea {
   box-shadow: 0 1px 4px #4c347011;
   font-weight: 700;
 }
+.photo-library {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: 10px;
+}
+.photo-thumb,
+.photo-add {
+  position: relative;
+  aspect-ratio: 9/16;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.photo-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.photo-thumb button {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #000000a6;
+  color: #fff;
+}
+.photo-add {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px dashed #bdbdf3;
+  background: #f5f5ff;
+  color: #5d5d72;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.photo-add input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.photo-picker {
+  width: 100%;
+  max-width: 460px;
+  display: grid;
+  gap: 10px;
+  margin-top: 6px;
+}
+.photo-picker .picker-tabs {
+  display: flex;
+  gap: 6px;
+}
+.photo-picker .picker-search {
+  display: flex;
+  gap: 8px;
+}
+.photo-picker .picker-search input {
+  flex: 1;
+}
+.photo-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.photo-grid button {
+  position: relative;
+  aspect-ratio: 9/16;
+  border-radius: 6px;
+  overflow: hidden;
+  padding: 0;
+  border: 2px solid transparent;
+}
+.photo-grid button:hover,
+.photo-grid button:focus-visible {
+  border-color: var(--purple);
+}
+.photo-grid img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.photo-grid button:disabled {
+  opacity: 0.5;
+}
+.photo-credit {
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+}
+.photo-credit a {
+  color: inherit;
+  text-decoration: underline;
+}
 .logo-upload {
   position: relative;
   display: flex;
@@ -1537,6 +1639,12 @@ textarea {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+.color-role {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  min-width: 84px;
 }
 .color-fields input {
   width: 42px;
@@ -1801,6 +1909,166 @@ textarea {
   border: 1px dashed #795ac785;
   pointer-events: none;
   background: transparent;
+}
+.editor-canvas img {
+  cursor: pointer;
+}
+.layer-outline {
+  position: absolute;
+  border: 1.5px solid var(--purple);
+  border-radius: 3px;
+  box-shadow: 0 0 0 2px #ffffffb3;
+  pointer-events: none;
+}
+.layer-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.layer-picker button {
+  padding: 7px 11px;
+  border: 1px solid #e7dfef;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #5d5d72;
+  background: #fff;
+}
+.layer-picker button.active {
+  background: var(--purple);
+  border-color: var(--purple);
+  color: #fff;
+}
+.layer-picker button.hidden-layer:not(.active) {
+  opacity: 0.55;
+  text-decoration: line-through;
+}
+.style-toggles {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border: 1px solid #e7dfef;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.style-toggles button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 8px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #5d5d72;
+}
+.style-toggles button + button {
+  border-left: 1px solid #e7dfef;
+}
+.style-toggles button.active {
+  background: #f4edfc;
+  color: var(--purple);
+}
+.range-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.range-row input[type='range'] {
+  flex: 1;
+}
+.range-row input[type='number'] {
+  width: 76px;
+}
+.editor-panel-body input[type='range'] {
+  width: 100%;
+  accent-color: var(--purple);
+  padding: 0;
+  border: 0;
+  min-height: 28px;
+}
+.color-picker {
+  display: grid;
+  gap: 10px;
+}
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.swatches > button,
+.swatch-custom {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid #00000026;
+  padding: 0;
+}
+.swatches > button.active {
+  box-shadow:
+    0 0 0 2px #fff,
+    0 0 0 4px var(--purple);
+}
+.swatch-custom {
+  position: relative;
+  display: grid;
+  place-items: center;
+  color: #5d5d72;
+  background: conic-gradient(#f43f5e, #f59e0b, #22c55e, #3b82f6, #a855f7, #f43f5e);
+  cursor: pointer;
+}
+.swatch-custom svg {
+  background: #fff;
+  border-radius: 50%;
+  padding: 2px;
+  width: 18px;
+  height: 18px;
+}
+.swatch-custom input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+}
+.color-picker .hex-input {
+  width: 110px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-transform: lowercase;
+}
+.editor-panel-body .text-link {
+  display: block;
+  margin: 4px 0 18px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--purple);
+  text-align: left;
+}
+.regenerate-box {
+  width: 100%;
+  max-width: 460px;
+  display: grid;
+  gap: 10px;
+  margin-top: 6px;
+}
+.regenerate-box label {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink, #172420);
+}
+.regenerate-box textarea {
+  width: 100%;
+  resize: vertical;
+}
+.regenerate-box .artwork-actions {
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.regenerate-box small {
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
 }
 .stage-caption {
   font-size: 11px;
@@ -2646,8 +2914,7 @@ textarea {
     gap: 9px;
   }
   .color-fields > div {
-    flex-direction: column;
-    gap: 4px;
+    width: 100%;
   }
   .color-fields input.hex-input {
     width: 84px;
@@ -2949,4 +3216,137 @@ textarea {
   width: 44px;
   height: 78px;
   object-fit: cover;
+}
+.video-box {
+  width: 100%;
+  max-width: 460px;
+  display: grid;
+  gap: 10px;
+  margin-top: 6px;
+  padding: 14px;
+  border: 1px solid var(--line, #e3e0ea);
+  border-radius: 14px;
+}
+.video-box > strong {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+}
+.video-box small {
+  font-size: 12px;
+  color: var(--muted);
+}
+.motion-chips {
+  display: flex;
+  gap: 6px;
+}
+.motion-chips button {
+  flex: 1;
+  min-height: 40px;
+  border-radius: 999px;
+  border: 1px solid var(--line, #e3e0ea);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+}
+.motion-chips button.active {
+  background: var(--ink, #172420);
+  border-color: var(--ink, #172420);
+  color: #fff;
+}
+.video-box video {
+  width: 100%;
+  max-width: 270px;
+  justify-self: center;
+  aspect-ratio: 9 / 16;
+  border-radius: 12px;
+  background: #000;
+}
+/* Editor tools fold away so the preview and text stay close together on phones. */
+.story-tool {
+  width: 100%;
+  max-width: 460px;
+  margin-top: 10px;
+  border: 1px solid var(--border, #e3e0ea);
+  border-radius: 14px;
+  background: white;
+}
+.story-tool > summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 10px 16px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink, #172420);
+}
+.story-tool > summary::-webkit-details-marker {
+  display: none;
+}
+.story-tool > summary::after {
+  content: '';
+  margin-left: auto;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+  opacity: 0.5;
+  transition: transform 0.15s;
+}
+.story-tool[open] > summary::after {
+  transform: rotate(-135deg);
+}
+.story-tool > summary span {
+  display: grid;
+  gap: 2px;
+}
+.story-tool > summary small {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted);
+}
+.story-tool > :not(summary) {
+  margin: 0 auto;
+  padding: 0 16px 16px;
+}
+.story-tool .video-box {
+  border: 0;
+  margin-top: 0;
+}
+.story-tool .regenerate-box {
+  margin-top: 0;
+}
+.crumb-project {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+@media (max-width: 700px) {
+  .breadcrumb {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .button-group {
+    flex-wrap: wrap;
+  }
+  .app-footer > span {
+    display: block;
+  }
+  .app-footer .footer-separator {
+    display: inline;
+  }
+  .app-footer .offline-dot,
+  .app-footer .online-dot {
+    display: inline-block;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
 }

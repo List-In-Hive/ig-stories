@@ -17,7 +17,11 @@ export function sameOrigin(request: Request) {
 export function failure(error: unknown) {
   if (error instanceof ZodError)
     return NextResponse.json(
-      { error: error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join(' ') },
+      {
+        error: error.issues
+          .map((i) => (/^[A-Z]/.test(i.message) ? i.message : `${i.path.join('.')}: ${i.message}`))
+          .join(' '),
+      },
       { status: 400 },
     );
   if (error instanceof AppError)

@@ -16,6 +16,8 @@ import {
   approve,
   versions,
   feedbackFor,
+  findStock,
+  swapPhoto,
 } from '@/lib/services';
 import { setSetting } from '@/lib/db';
 import { deleteProject } from '@/lib/lifecycle';
@@ -39,12 +41,13 @@ export async function POST(request: Request) {
           .object({
             website: z.union([z.literal(''), z.url()]).default(''),
             handle: z.string().max(60).default(''),
-            photos: z.array(z.string().max(2_000_000)).max(10).default([]),
+            photos: z.array(z.string().max(2_000_000)).max(20).default([]),
             keep: z
               .object({
                 colors: z
                   .array(z.string().regex(/^#[0-9a-fA-F]{6}$/))
-                  .length(3)
+                  .min(4)
+                  .max(5)
                   .optional(),
                 font: z.enum(['Inter', 'Lora', 'Montserrat', 'Brand']).optional(),
                 visualDirection: z.string().max(2000).optional(),
@@ -114,12 +117,27 @@ export async function POST(request: Request) {
           user.id,
         );
         break;
+      case 'stockSearch':
+        result = await findStock(z.string().max(100).parse(body.query));
+        break;
+      case 'usePhoto':
+        result = await swapPhoto(
+          z.string().parse(body.storyId),
+          z.string().parse(body.expected),
+          z
+            .object({ stock: z.string().max(40).optional(), library: z.string().optional() })
+            .refine((c) => !!c.stock !== !!c.library, 'Choose one photo.')
+            .parse(body.choice),
+          user.id,
+        );
+        break;
       case 'revise':
         result = await reviseStory(
           z.string().parse(body.storyId),
           z.string().parse(body.expected),
-          z.enum(['image', 'idea']).parse(body.kind),
+          z.enum(['image', 'idea', 'text']).parse(body.kind),
           user.id,
+          z.string().max(2000).optional().parse(body.prompt),
         );
         break;
       case 'feedback':
@@ -158,11 +176,13 @@ export async function POST(request: Request) {
             providerMode: z.enum(['demo', 'live']),
             automationEnabled: z.boolean(),
             timeZone: z.string().refine(isTimeZone, 'Choose a valid time zone.').optional(),
+            exportFormat: z.enum(['jpeg', 'png']).optional(),
           })
           .parse(body.settings);
         setSetting('providerMode', parsed.providerMode);
         setSetting('automationEnabled', String(parsed.automationEnabled));
         if (parsed.timeZone) setSetting('timeZone', parsed.timeZone);
+        if (parsed.exportFormat) setSetting('exportFormat', parsed.exportFormat);
         result = { ok: true };
         break;
       }

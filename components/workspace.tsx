@@ -37,10 +37,34 @@ import {
   Leaf,
 } from 'lucide-react';
 import type { AppState, Project, Story, Run } from '@/lib/types';
-import { api, Button, Badge, Field, Empty, Modal, formatDate, formatTime } from './ui';
+import {
+  api,
+  Button,
+  Badge,
+  Field,
+  Empty,
+  Modal,
+  formatClock,
+  formatDate,
+  formatTime,
+  formatShortTime,
+  setDisplayTimeZone,
+  zoneLabel,
+} from './ui';
+// The distinct daily generation times of active projects, such as "8:00 AM, 9:30 AM".
+const dailyTimes = (state: AppState) =>
+  [
+    ...new Set(
+      state.projects.filter((p) => p.status === 'active').map((p) => p.generateAt || '08:00'),
+    ),
+  ]
+    .sort()
+    .map(formatClock)
+    .join(', ') || formatClock('08:00');
 import Login from './login';
 import Brand from './brand';
 import ProjectForm from './project-form';
+import { palette } from '@/lib/palette';
 import StoryEditor from './story-editor';
 import SaveStories from './save-stories';
 export type Command = <T = Record<string, unknown>>(
@@ -70,7 +94,9 @@ export default function Workspace() {
   const [dirty, setDirty] = useState(false);
   const refresh = useCallback(async () => {
     try {
-      setState(await api<AppState>('/api/state'));
+      const next = await api<AppState>('/api/state');
+      setDisplayTimeZone(next.settings.timeZone);
+      setState(next);
     } catch (e) {
       if ((e as Error & { status: number }).status === 401) setState(null);
       else setToast({ message: (e as Error).message, error: true });
@@ -188,7 +214,7 @@ export default function Workspace() {
                 onClick={() => navigate(`/projects/${p.id}`)}
                 title={p.name}
               >
-                <i style={{ background: p.colors[1] }} />
+                <i style={{ background: palette(p.colors).accent }} />
                 <span>{p.name}</span>
                 {p.status === 'paused' && <Pause size={12} />}
               </button>
@@ -220,7 +246,7 @@ export default function Workspace() {
             {project && (
               <>
                 <ChevronRight size={14} />
-                {project.name}
+                <span className="crumb-project">{project.name}</span>
               </>
             )}
           </div>
@@ -282,6 +308,8 @@ export default function Workspace() {
             <StoryEditor
               key={story.id}
               story={story}
+              project={state.projects.find((p) => p.id === story.projectId)}
+              stock={state.settings.stock}
               command={command}
               notify={notify}
               onDirty={setDirty}
@@ -333,7 +361,7 @@ export default function Workspace() {
             Local worker {state.worker.online ? 'online' : 'offline'}
             <span className="footer-separator">·</span>
             {state.settings.automationEnabled
-              ? `Daily at 8:00 AM ${new Date().toLocaleDateString('en-US', { timeZone: 'America/Los_Angeles', timeZoneName: 'short' }).split(' ').pop()}`
+              ? `Daily at ${dailyTimes(state)} ${zoneLabel()}`
               : 'Daily automation paused'}
           </span>
           <button onClick={() => setHelp(true)}>
@@ -372,6 +400,7 @@ export default function Workspace() {
       {projectForm && (
         <ProjectForm
           project={projectForm === 'new' ? undefined : projectForm}
+          stock={state.settings.stock}
           onClose={() => setProjectForm(null)}
           onSave={async (p, projectId) => {
             const saved = await command<Project>('saveProject', { project: p, projectId });
@@ -421,7 +450,8 @@ export default function Workspace() {
             </p>
             <p>
               <strong>2. Review the drafts.</strong> The local worker creates four independent story
-              slots for each active project at 8:00 AM Los Angeles time while it is running.
+              slots for each active project at that project’s daily time ({dailyTimes(state)}{' '}
+              {zoneLabel()}) while it is running.
             </p>
             <p>
               <strong>3. Make it yours.</strong> Edit text and layout, regenerate artwork, or start
@@ -429,7 +459,7 @@ export default function Workspace() {
             </p>
             <p>
               <strong>4. Approve and download.</strong> Download the exact approved version as a
-              1080 × 1920 PNG, then post manually.
+              1080 × 1920 image, then post manually.
             </p>
             <div className="soft-note">
               {state.settings.providerMode === 'live'
@@ -494,7 +524,7 @@ function StoryCard({
               onChange={(e) => onSelect(e.target.checked)}
             />
           )}
-          <span>STORY {String(story.slot || 1).padStart(2, '0')}</span>
+          <span>Story {story.slot || 1}</span>
           <button
             className="preview-more"
             aria-label="Open story editor"
@@ -512,7 +542,9 @@ function StoryCard({
         </div>
         <div className="card-meta">
           <Badge status={story.approvedVersionId ? 'approved' : 'draft'} />
-          <span>English · 9:16</span>
+          <span title={`Generated ${formatTime(story.createdAt)}`}>
+            Generated {formatShortTime(story.createdAt)}
+          </span>
         </div>
         <div className="card-actions">
           <Button variant="ghost" onClick={() => navigate(`/editor/${story.id}`)}>
@@ -696,7 +728,7 @@ function StoryList({
               </strong>
               <p>
                 {state.worker.online
-                  ? 'Four drafts per active project. Every morning at 8:00 AM, Los Angeles time.'
+                  ? `Four drafts per active project, daily at ${dailyTimes(state)} ${zoneLabel()}.`
                   : 'The worker is offline. Start the app and worker together to generate queued drafts.'}
               </p>
             </div>
@@ -823,7 +855,10 @@ function StoryList({
             <div className="project-story-heading">
               <div
                 className="project-mark"
-                style={{ background: project.colors[0], color: project.colors[1] }}
+                style={{
+                  background: palette(project.colors).background,
+                  color: palette(project.colors).accent,
+                }}
               >
                 {project.name.charAt(0)}
               </div>
@@ -948,7 +983,7 @@ function Stat({
         <span>{label}</span>
         <i>{icon}</i>
       </div>
-      <strong>{String(value).padStart(2, '0')}</strong>
+      <strong>{value}</strong>
       <small>{note}</small>
     </div>
   );
@@ -1044,12 +1079,12 @@ function Projects({
       <div className="projects-grid">
         {projects.map((p) => (
           <article className="project-tile" key={p.id}>
-            <div className="project-cover" style={{ background: p.colors[0] }}>
-              <div className="cover-shapes" style={{ background: p.colors[1] }} />
+            <div className="project-cover" style={{ background: palette(p.colors).background }}>
+              <div className="cover-shapes" style={{ background: palette(p.colors).accent }} />
               {p.logoId ? (
                 <img src={`/api/assets/${p.logoId}`} alt={`${p.name} logo`} />
               ) : (
-                <span style={{ color: p.colors[1] }}>{p.name.charAt(0)}</span>
+                <span style={{ color: palette(p.colors).accent }}>{p.name.charAt(0)}</span>
               )}
               <Badge status={p.status} />
             </div>
@@ -1177,7 +1212,9 @@ function ProjectDetails({
                 <h3>Project rhythm</h3>
                 <Clock3 size={18} />
               </div>
-              <p>4 story drafts · daily at 8:00 AM Los Angeles time</p>
+              <p>
+                4 story drafts · daily at {formatClock(project.generateAt || '08:00')} {zoneLabel()}
+              </p>
               <div className="button-group">
                 <Button
                   variant="secondary"
@@ -1400,7 +1437,6 @@ function ManualForm({
   const [answers, setAnswers] = useState('');
   const [headline, setHeadline] = useState('');
   const [body, setBody] = useState('');
-  const [cta, setCta] = useState('');
   const [visual, setVisual] = useState(project.visualDirection);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -1430,7 +1466,6 @@ function ManualForm({
                       .filter(Boolean)
                       .join('\n\n')
                   : body,
-              cta,
               visual,
               sources: [],
               ...(kind !== 'standard' ? { kind } : {}),
@@ -1487,9 +1522,6 @@ function ManualForm({
               />
             </Field>
           )}
-          <Field label="Call to action (optional)">
-            <input value={cta} onChange={(e) => setCta(e.target.value)} />
-          </Field>
           <Field label="Visual instructions">
             <textarea rows={3} value={visual} onChange={(e) => setVisual(e.target.value)} />
           </Field>
@@ -1594,6 +1626,7 @@ function SettingsPage({
   const [provider, setProvider] = useState(state.settings.providerMode);
   const [enabled, setEnabled] = useState(state.settings.automationEnabled);
   const [zone, setZone] = useState(state.settings.timeZone);
+  const [format, setFormat] = useState(state.settings.exportFormat);
   const zones = useMemo(() => {
     const all = Intl.supportedValuesOf('timeZone');
     return all.includes(zone) ? all : [zone, ...all];
@@ -1603,7 +1636,12 @@ function SettingsPage({
     setBusy(true);
     try {
       await command('settings', {
-        settings: { providerMode: provider, automationEnabled: enabled, timeZone: zone },
+        settings: {
+          providerMode: provider,
+          automationEnabled: enabled,
+          timeZone: zone,
+          exportFormat: format,
+        },
       });
       notify('Workspace settings saved.');
     } catch {
@@ -1776,6 +1814,15 @@ function SettingsPage({
                     {z.replaceAll('_', ' ')}
                   </option>
                 ))}
+              </select>
+            </Field>
+            <Field
+              label="Download format"
+              hint="JPEG looks the same once Instagram recompresses it and is about five times smaller. PNG is lossless for designers."
+            >
+              <select value={format} onChange={(e) => setFormat(e.target.value as 'jpeg' | 'png')}>
+                <option value="jpeg">JPEG, high quality (recommended)</option>
+                <option value="png">PNG, lossless</option>
               </select>
             </Field>
             <label className="switch-row">

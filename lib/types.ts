@@ -27,6 +27,9 @@ export type Project = {
   generateAt: string;
   webResearch: boolean;
   logoId: string | null;
+  // The brand's own photos used as story backgrounds, and whether Pexels stock may be used.
+  photoIds?: string[];
+  stockPhotos?: boolean;
   website: string;
   email: string;
   phone: string;
@@ -45,12 +48,15 @@ export type Layer = {
   font: FontName;
   align: 'left' | 'center' | 'right';
   visible: boolean;
+  // Optional styling; older stories leave these out and keep the defaults.
+  bold?: boolean;
+  uppercase?: boolean;
+  lineHeight?: number;
+  shadow?: boolean;
 };
 export type Layout = {
   headline: Layer;
   body: Layer;
-  cta: Layer;
-  contact: Layer;
   logo: { x: number; y: number; width: number; visible: boolean };
 };
 export type Script = {
@@ -58,11 +64,19 @@ export type Script = {
   topic: string;
   headline: string;
   body: string;
-  cta: string;
   visual: string;
   sources: string[];
   review?: { reviewer: string; passed: boolean; notes: string[]; revised: boolean };
+  // The photo style and text position this story was assigned, so the next days can vary them.
+  look?: string;
+  placement?: Placement;
+  // Where the background comes from; AI when missing. Stock photos keep their credit.
+  source?: PhotoSource;
+  photoSearch?: string;
+  credit?: { name: string; url: string; photoUrl: string };
 };
+export type PhotoSource = 'ai' | 'stock' | 'library';
+export type Placement = 'top' | 'bottom';
 export type Snapshot = {
   script: Script;
   layout: Layout;
@@ -141,6 +155,9 @@ export type AppState = {
     missingKeys: string[];
     automationEnabled: boolean;
     timeZone: string;
+    exportFormat: 'jpeg' | 'png';
+    // The stock photo service in use, or null when no key is configured.
+    stock: string | null;
   };
   worker: { online: boolean; heartbeat: string | null; nextRun: string };
   today: string;

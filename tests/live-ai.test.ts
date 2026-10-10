@@ -22,7 +22,6 @@ const story = (topic: string, kind = 'standard') => ({
   topic,
   headline: `${topic} today`,
   body: 'Seasonal coffee and freshly baked pastries are part of our menu.',
-  cta: 'Visit us this week',
   visual: `A calm morning scene about ${topic}`,
   sources: [] as string[],
 });
@@ -30,6 +29,8 @@ const requests: { prompt: string }[] = [];
 let replies: unknown[] = [];
 let searchResults: string[] = [];
 let reviews: unknown[] = [];
+let styles: unknown[] = [];
+const visionRequests: unknown[] = [];
 const allPassed = { reviews: [0, 1, 2, 3].map((index) => ({ index, passed: true, issues: [] })) };
 const png = await sharp({
   create: { width: 1024, height: 1536, channels: 3, background: '#c28660' },
@@ -58,7 +59,14 @@ ai.setLiveClients({
     },
   } as never,
   openai: {
-    responses: { parse: async () => ({ output_parsed: reviews.shift() ?? allPassed }) },
+    responses: {
+      parse: async (params: { text: { format: { name: string } }; input: unknown }) => {
+        if (params.text.format.name !== 'brand_style')
+          return { output_parsed: reviews.shift() ?? allPassed };
+        visionRequests.push(params.input);
+        return { output_parsed: styles.shift() };
+      },
+    },
     images: {
       generate: async () => {
         imageCalls++;
@@ -99,6 +107,56 @@ test('live mode plans four distinct Claude scripts per run and paints OpenAI bac
     ).metadata();
     assert.deepEqual([bg.width, bg.height, bg.format], [1080, 1920, 'png']);
   }
+  const scripts = stories
+    .sort((a, b) => (a.slot ?? 0) - (b.slot ?? 0))
+    .map((s) => s.version.data.script);
+  assert.equal(new Set(scripts.map((s) => s.look)).size, 4, 'each story gets its own photo style');
+  assert.deepEqual(
+    scripts.map((s) => s.placement),
+    ['top', 'bottom', 'top', 'bottom'],
+  );
+  assert.equal(requests[0].prompt.match(/Photo style:/g)?.length, 4);
+  const bottom = stories.find((s) => s.version.data.script.placement === 'bottom')!;
+  assert.ok(bottom.version.data.layout.headline.y > 900, 'bottom stories place text low');
+});
+
+test('the next plan avoids recent photo styles and scenes, and continues the text rhythm', async () => {
+  const first = service.listStories().filter((s) => s.projectId === project.id)[0];
+  requests.length = 0;
+  replies = [
+    { stories: ['Fresh angle', 'New corner', 'Another day', 'Last one'].map((t) => story(t)) },
+  ];
+  const runId = service.enqueueRun(project.id, 'manual', new Date(), 'live-run-variety');
+  for (let i = 0; i < 4; i++) await service.processJob(service.claimJob()!);
+  const prompt = requests[0].prompt;
+  assert.match(prompt, /Recent image prompts/);
+  assert.ok(prompt.includes(first.version.data.script.visual.slice(0, 40)));
+  const before = new Set(
+    service
+      .listStories()
+      .filter((s) => s.projectId === project.id && s.runId !== runId)
+      .slice(0, 8)
+      .map((s) => s.version.data.script.look),
+  );
+  const next = service.listStories().filter((s) => s.runId === runId);
+  for (const s of next) assert.ok(!before.has(s.version.data.script.look), 'a fresh photo style');
+});
+
+test('the text wash is dark for brands with light text, so dark photos stay dark', async () => {
+  const dark = await sharp({
+    create: { width: 1080, height: 1920, channels: 3, background: '#0e0e14' },
+  })
+    .composite([{ input: ai.wash('top', false) }])
+    .raw()
+    .toBuffer();
+  const light = await sharp({
+    create: { width: 1080, height: 1920, channels: 3, background: '#0e0e14' },
+  })
+    .composite([{ input: ai.wash('top', true) }])
+    .raw()
+    .toBuffer();
+  assert.ok(dark[0] < 20, 'a dark brand keeps its dark backdrop');
+  assert.ok(light[0] > 100, 'a light wash brightens behind dark text');
 });
 
 test('live scripts that break the engagement rule are retried with the reason', async () => {
@@ -118,7 +176,7 @@ test('live scripts that break the engagement rule are retried with the reason', 
 
 test('live text feedback is rewritten by Claude as a new draft', async () => {
   const current = service.listStories().find((s) => s.projectId === project.id)!;
-  replies = [{ headline: 'Warm cups', body: 'Freshly baked pastries.', cta: 'Stop by' }];
+  replies = [{ headline: 'Warm cups', body: 'Freshly baked pastries. Stop by.' }];
   const result = await service.requestChanges(
     current.id,
     current.latestVersionId,
@@ -129,7 +187,52 @@ test('live text feedback is rewritten by Claude as a new draft', async () => {
   assert.equal(result.applied, true);
   const next = service.getStory(current.id);
   assert.equal(next.version.data.layout.headline.text, 'Warm cups');
-  assert.equal(next.version.data.script.cta, 'Stop by');
+  assert.equal(next.version.data.script.body, 'Freshly baked pastries. Stop by.');
+});
+
+test('regenerating with an admin prompt guides Claude and keeps the story design', async () => {
+  let current = service.listStories().find((s) => s.projectId === project.id)!;
+  const layout = structuredClone(current.version.data.layout);
+  layout.headline = { ...layout.headline, color: '#ffffff', bold: false, size: 70 };
+  const designed = service.saveStory(current.id, current.latestVersionId, layout, admin.id);
+
+  requests.length = 0;
+  replies = [{ stories: [story('Pumpkin latte')] }];
+  const idea = await service.reviseStory(
+    current.id,
+    designed.id,
+    'idea',
+    admin.id,
+    'Make it about our new pumpkin latte',
+  );
+  assert.match(requests[0].prompt, /Make it about our new pumpkin latte/);
+  assert.equal(idea.data.script.topic, 'Pumpkin latte');
+  assert.equal(idea.data.layout.headline.text, 'Pumpkin latte today');
+  assert.equal(idea.data.layout.headline.color, '#ffffff', 'the admin design is kept');
+  assert.equal(idea.data.layout.headline.size, 70);
+
+  requests.length = 0;
+  const images = imageCalls;
+  replies = [{ visual: 'A pumpkin latte on a sunny windowsill' }];
+  const image = await service.reviseStory(
+    current.id,
+    idea.id,
+    'image',
+    admin.id,
+    'A latte on a sunny windowsill',
+  );
+  assert.match(requests[0].prompt, /A latte on a sunny windowsill/);
+  assert.equal(imageCalls, images + 1);
+  assert.equal(image.data.prompt, 'A pumpkin latte on a sunny windowsill');
+  assert.equal(image.data.layout.headline.text, 'Pumpkin latte today');
+
+  replies = [{ headline: 'Fall in a cup', body: 'Pumpkin spice is back.' }];
+  const text = await service.reviseStory(current.id, image.id, 'text', admin.id, 'Shorter');
+  assert.equal(text.data.layout.headline.text, 'Fall in a cup');
+  assert.equal(text.data.layout.headline.color, '#ffffff');
+  assert.equal(text.data.backgroundId, image.data.backgroundId, 'new text keeps the image');
+  current = service.getStory(current.id);
+  assert.equal(current.latestVersionId, text.id);
 });
 
 test('live mode without API keys fails clearly instead of falling back to demo', async () => {
@@ -187,7 +290,7 @@ test('Claude researches, ChatGPT reviews, and flagged stories are revised once',
   };
   replies = [
     { stories: [researched, story('Tip'), story('Product'), story('Moment')] },
-    { headline: 'Pastry, slowly', body: 'Freshly baked pastries.', cta: 'Visit us' },
+    { headline: 'Pastry, slowly', body: 'Freshly baked pastries.' },
   ];
   reviews = [
     {
@@ -251,7 +354,8 @@ test('AI quick start drafts a brief from the website for review', async () => {
   replies = [
     {
       name: 'Fern & Field',
-      industry: 'Plants & home',
+      industry:
+        'Plants & home, including indoor plants, planters, workshops, plant care services, gifts and local delivery',
       description: 'A plant shop.',
       services: 'Indoor plants, Planters',
       audience: 'Plant lovers',
@@ -259,9 +363,9 @@ test('AI quick start drafts a brief from the website for review', async () => {
       rules: 'Warm, plain English.',
       prohibited: 'Medical claims',
       visualDirection: 'Soft greens',
-      colors: ['#e6ebdf', '#638166', 'green'],
+      palette: { background: '#e6ebdf', text: '#1d2a1f', accent: '#638166', secondary: 'green' },
       font: 'Lora',
-      email: '',
+      email: 'see contact page',
       phone: '',
       address: '',
       location: 'Yerevan',
@@ -272,7 +376,10 @@ test('AI quick start drafts a brief from the website for review', async () => {
     instagram: 'https://www.instagram.com/fern/',
   });
   assert.match(requests[0].prompt, /https:\/\/fern\.example/);
-  assert.equal(brief.colors.length, 3, 'invalid colors fall back to a full palette');
+  assert.equal(brief.colors.length, 4, 'invalid colors fall back to a full palette');
+  assert.ok(brief.industry.length <= 80, 'long AI answers are shortened to fit the form');
+  assert.match(brief.industry, /^Plants & home/);
+  assert.equal(brief.email, '', 'an invalid AI email is dropped');
   const saved = service.saveProject({
     ...brief,
     status: 'paused',
@@ -282,7 +389,7 @@ test('AI quick start drafts a brief from the website for review', async () => {
   assert.equal(service.getProject(saved.id).instagram, 'https://www.instagram.com/fern/');
 });
 
-test('post photos are cleaned and sent to Claude, and hand-set styles are kept', async () => {
+test('ChatGPT studies post photos while Claude researches, and hand-set styles are kept', async () => {
   const storage = await import('../lib/storage');
   await assert.rejects(storage.normalizePhoto('bm90IGFuIGltYWdl'), /could not be read/);
   const tall = await sharp({
@@ -298,36 +405,95 @@ test('post photos are cleaned and sent to Claude, and hand-set styles are kept',
     {
       name: 'Shot Studio',
       industry: 'Design',
-      description: 'A studio.',
-      services: '',
-      audience: '',
-      facts: '',
-      rules: '',
-      prohibited: '',
-      visualDirection: 'Lilac minimal',
-      colors: ['#ebe8f3', '#9d91b9', '#ded9e9'],
+      description: 'A design studio in Yerevan.',
+      services: 'Branding',
+      audience: 'Founders',
+      facts: 'Founded in 2019',
+      rules: 'Confident and brief.',
+      prohibited: 'Politics',
+      visualDirection: 'Website guess',
+      palette: { background: '#000000', text: '#ffffff', accent: '#111111', secondary: '#222222' },
       font: 'Inter',
-      email: '',
+      email: 'hi@shot.example',
       phone: '',
       address: '',
-      location: '',
+      location: 'Yerevan',
     },
   ];
+  styles = [
+    {
+      visualDirection: 'Lilac minimal flat lays in soft daylight',
+      palette: { background: '#ebe8f3', text: '#2b2540', accent: '#9d91b9', secondary: '#ded9e9' },
+      font: 'Montserrat',
+      themes: 'Desks, sketches',
+      visibleFacts: 'Free consultation every Friday\nFounded in 2019',
+      brandName: 'Shot',
+      industry: '',
+    },
+  ];
+  const photos = Array.from({ length: 20 }, () => shot);
   const brief = await ai.draftBrief({
+    website: 'https://shot.example',
+    instagram: '',
+    photos,
+  });
+  // Claude gets text only; the 20 photos go to ChatGPT.
+  assert.equal(typeof requests[0].prompt, 'string');
+  assert.match(requests[0].prompt, /shot\.example/);
+  const vision = visionRequests[0] as { content: { type: string }[] }[];
+  assert.equal(vision[0].content.filter((b) => b.type === 'input_image').length, 20);
+  assert.equal(brief.name, 'Shot Studio');
+  assert.equal(brief.visualDirection, 'Lilac minimal flat lays in soft daylight');
+  assert.deepEqual(brief.colors, ['#ebe8f3', '#2b2540', '#9d91b9', '#ded9e9']);
+  assert.equal(brief.font, 'Montserrat');
+  assert.equal(brief.facts, 'Founded in 2019\nFree consultation every Friday');
+  assert.equal(brief.email, 'hi@shot.example');
+
+  // Photos alone skip Claude, and styles set by hand win over both models.
+  requests.length = 0;
+  styles = [
+    {
+      visualDirection: 'From photos',
+      palette: { background: '#ebe8f3', text: '#2b2540', accent: '#9d91b9', secondary: '#ded9e9' },
+      font: 'Lora',
+      themes: '',
+      visibleFacts: '',
+      brandName: 'Shot',
+      industry: 'Design',
+    },
+  ];
+  const kept = await ai.draftBrief({
     website: '',
     instagram: '',
-    photos: [shot, shot],
-    keep: { colors: ['#112233', '#445566', '#778899'], font: 'Brand' },
+    photos: [shot],
+    keep: { colors: ['#f4f1ea', '#112233', '#445566', '#778899'], font: 'Brand' },
   });
-  const content = requests[0].prompt as unknown as { type: string; text?: string }[];
-  assert.deepEqual(
-    content.map((b) => b.type),
-    ['image', 'image', 'text'],
-  );
-  assert.match(content[2].text!, /already set the brand colors #112233, #445566, #778899/);
-  assert.deepEqual(brief.colors, ['#112233', '#445566', '#778899']);
-  assert.equal(brief.font, 'Brand');
-  assert.equal(brief.visualDirection, 'Lilac minimal');
+  assert.equal(requests.length, 0);
+  assert.deepEqual(kept.colors, ['#f4f1ea', '#112233', '#445566', '#778899']);
+  assert.equal(kept.font, 'Brand');
+  assert.equal(kept.visualDirection, 'From photos');
+  assert.equal(kept.name, 'Shot');
+});
+
+test('palette roles: old three-color brands gain a text color, and story text stays readable', async () => {
+  const { normalizePalette, readable, contrast } = await import('../lib/palette');
+  const composition = await import('../lib/composition');
+  assert.deepEqual(normalizePalette(['#f5e8d7', '#a67550', '#ecdbc2']), [
+    '#f5e8d7',
+    '#172420',
+    '#a67550',
+    '#ecdbc2',
+  ]);
+  assert.equal(readable('#3b2a8f', '#f7f4ee'), '#3b2a8f');
+  assert.ok(contrast(readable('#f0f0f0', '#ffffff'), '#ffffff') >= 4.5);
+  const base = service.getProject(project.id);
+  assert.equal(base.colors.length, 4);
+  const branded = { ...base, colors: ['#f7f4ee', '#3b2a8f', '#c2410c', '#e9e2f5', '#0f766e'] };
+  const layout = composition.defaultLayout(branded, story('Palette') as never);
+  assert.equal(layout.headline.color, '#3b2a8f');
+  const saved = service.saveProject(branded, project.id);
+  assert.equal(saved.colors.length, 5);
+  service.saveProject({ ...saved, colors: base.colors }, project.id);
 });
 
 test('an uploaded brand font is validated, frozen into stories, and used for rendering', async () => {
@@ -357,8 +523,7 @@ test('an uploaded brand font is validated, frozen into stories, and used for ren
   assert.match(composition.renderSvg(snapshot), /font-family="Montserrat ExtraBold"/);
   const branded = composition.renderPng(snapshot);
   const plain = structuredClone(snapshot);
-  for (const key of ['headline', 'body', 'cta', 'contact'] as const)
-    plain.layout[key].font = 'Inter';
+  for (const key of ['headline', 'body'] as const) plain.layout[key].font = 'Inter';
   assert.notDeepEqual(branded, composition.renderPng(plain));
   service.saveProject({ ...saved, font: 'Inter', brandFont: null }, project.id);
 });

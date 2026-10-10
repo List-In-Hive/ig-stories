@@ -31,7 +31,6 @@ const plain: Script = {
   topic: 'A thoughtful detail',
   headline: 'A thoughtful detail.',
   body: 'Considered design for everyday spaces.',
-  cta: 'Discover more',
   visual: 'Abstract shapes',
   sources: [],
 };
@@ -59,7 +58,7 @@ test('engagement switch controls generated polls, questions, DM prompts, edits, 
     );
   for (const script of [
     { ...plain, headline: 'Do you like this idea?' },
-    { ...plain, cta: 'DM us' },
+    { ...plain, body: 'DM us for details' },
     { ...plain, body: 'Reply with your favorite' },
     { ...plain, kind: 'poll' as const },
   ])
@@ -83,7 +82,7 @@ test('engagement switch controls generated polls, questions, DM prompts, edits, 
   assert.equal(scripts[2].kind, 'question');
   assert.match(scripts[2].headline, /Do you like/);
   assert.equal(scripts[3].kind, 'dm');
-  assert.equal(scripts[3].cta, 'DM us to find out more');
+  assert.match(scripts[3].body, /DM us to find out more/);
   await assert.rejects(
     service.createManual(project.id, { ...plain, kind: 'poll' }, admin.id, db.id()),
     /two to four/,
@@ -100,7 +99,6 @@ test('engagement switch controls generated polls, questions, DM prompts, edits, 
       kind: 'poll',
       headline: 'Which do you like?',
       body: 'A. Calm colors\nB. Bold colors',
-      cta: 'Vote for your favorite',
     },
     admin.id,
     db.id(),
@@ -110,13 +108,12 @@ test('engagement switch controls generated polls, questions, DM prompts, edits, 
   assert.equal(meta.height, 1920);
   project = service.saveProject({ ...project, allowEngagement: false }, project.id);
   await assert.rejects(
-    service.createManual(project.id, { ...plain, cta: 'Message us' }, admin.id, db.id()),
+    service.createManual(project.id, { ...plain, body: 'Message us' }, admin.id, db.id()),
     /disabled/,
   );
   const informational = structuredClone(poll.version.data.layout);
   informational.headline.text = 'A thoughtful detail.';
   informational.body.text = 'Considered design for everyday spaces.';
-  informational.cta.text = 'Discover more';
   const converted = service.saveStory(poll.id, poll.latestVersionId, informational, admin.id);
   assert.equal(converted.data.script.kind, undefined);
   const newIdea = await service.reviseStory(poll.id, converted.id, 'idea', admin.id);

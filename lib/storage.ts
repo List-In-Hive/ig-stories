@@ -11,7 +11,13 @@ export const localStorage: FileStorage = {
   put(bytes, mime, kind, width, height) {
     const assetId = id();
     const extension =
-      { 'image/svg+xml': 'svg', 'font/ttf': 'ttf', 'font/otf': 'otf' }[mime] || 'png';
+      {
+        'image/svg+xml': 'svg',
+        'font/ttf': 'ttf',
+        'font/otf': 'otf',
+        'image/jpeg': 'jpg',
+        'video/mp4': 'mp4',
+      }[mime] || 'png';
     const filename = `${assetId}.${extension}`;
     fs.writeFileSync(path.join(directory, filename), bytes);
     run(
@@ -28,7 +34,7 @@ export const localStorage: FileStorage = {
       'INSERT INTO asset_cleanup_candidates VALUES(?,?,?)',
       assetId,
       now(),
-      kind === 'logo' || kind === 'brand-font'
+      kind === 'logo' || kind === 'brand-font' || kind === 'brand-photo'
         ? new Date(Date.now() + 3600000).toISOString()
         : null,
     );
@@ -65,6 +71,22 @@ export async function uploadLogo(bytes: Buffer, mime: string) {
     return localStorage.put(normalized, 'image/png', 'logo', meta.width!, meta.height!);
   } catch {
     throw new AppError('This image could not be read. Try another PNG, JPEG, or WebP.');
+  }
+}
+
+// The brand's own photos for story backgrounds, stored at story size as JPEG.
+export async function uploadBrandPhoto(bytes: Buffer) {
+  if (bytes.length > 20 * 1024 * 1024) throw new AppError('Choose a photo smaller than 20 MB.');
+  try {
+    const normalized = await sharp(bytes, { limitInputPixels: 60_000_000 })
+      .rotate()
+      .resize(1440, 2560, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 88 })
+      .toBuffer();
+    const meta = await sharp(normalized).metadata();
+    return localStorage.put(normalized, 'image/jpeg', 'brand-photo', meta.width!, meta.height!);
+  } catch {
+    throw new AppError('This photo could not be read. Use JPEG, PNG, or WebP.');
   }
 }
 

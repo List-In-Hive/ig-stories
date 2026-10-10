@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { Download, Share } from 'lucide-react';
 import { Button } from './ui';
 
-// Phones get the system share sheet, whose "Save Image" puts PNGs straight into Photos
+// Phones get the system share sheet, whose "Save Image" puts stories straight into Photos
 // (and can hand them to Instagram). Desktops keep ordinary downloads.
 function supportsFileShare() {
   try {
@@ -18,8 +18,9 @@ async function fetchStory(versionId: string) {
   if (!response.ok) throw new Error((await response.json()).error);
   const name =
     response.headers.get('Content-Disposition')?.match(/filename="([^"]+)"/)?.[1] ||
-    `story-${versionId}.png`;
-  return new File([await response.blob()], name, { type: 'image/png' });
+    `story-${versionId}.jpg`;
+  const blob = await response.blob();
+  return new File([blob], name, { type: blob.type || 'image/jpeg' });
 }
 export default function SaveStories({
   versionIds,
@@ -35,7 +36,7 @@ export default function SaveStories({
   small?: boolean;
   disabled?: boolean;
   desktopLabel: string;
-  // Desktop action for several stories (the ZIP download); one story downloads its PNG.
+  // Desktop action for several stories (the ZIP download); one story downloads its image.
   onDesktop?: () => void;
   notify: (text: string) => void;
 }) {

@@ -278,6 +278,43 @@ test('text edit never invokes image provider, exact approvals and immutable vers
   );
   chosenStory = service.getStory(draft.storyId);
 });
+test('each text layer keeps its own weight, case, spacing, shadow and color', () => {
+  const base = chosenStory.version;
+  const layout = structuredClone(base.data.layout);
+  layout.body = {
+    ...layout.body,
+    text: 'Small batch roast',
+    bold: true,
+    uppercase: true,
+    lineHeight: 1.6,
+    shadow: true,
+    color: '#ffffff',
+  };
+  layout.headline.bold = false;
+  const saved = service.saveStory(chosenStory.id, base.id, layout, admin.id);
+  assert.equal(saved.data.layout.body.lineHeight, 1.6);
+  const legacy = { ...layout, cta: { ...layout.body, text: 'Old call to action' } };
+  const cleaned = service.saveStory(chosenStory.id, saved.id, legacy, admin.id);
+  assert.equal('cta' in cleaned.data.layout, false, 'old CTA layers are dropped on save');
+  assert.doesNotMatch(composition.renderSvg(cleaned.data), /Old call to action/);
+  const svg = composition.renderSvg(saved.data);
+  const body = svg.match(/<text[^>]*fill="#ffffff"[^>]*>.*?<\/text>/)?.[0] || '';
+  assert.match(body, /font-weight="700"/);
+  assert.match(body, /filter="url\(#shadow\)"/);
+  assert.match(body, /SMALL BATCH ROAST/);
+  assert.match(svg, new RegExp(`font-size="${layout.headline.size}" font-weight="400"`));
+  assert.throws(
+    () =>
+      service.saveStory(
+        chosenStory.id,
+        cleaned.id,
+        { ...layout, body: { ...layout.body, lineHeight: 9 } },
+        admin.id,
+      ),
+    /2\.5/,
+  );
+  chosenStory = service.getStory(chosenStory.id);
+});
 test('regenerate retains script, new idea changes copy, and both preserve earlier versions', async () => {
   const before = chosenStory.version;
   const image = await service.reviseStory(chosenStory.id, before.id, 'image', admin.id);
@@ -298,7 +335,6 @@ test('manual script is exact, editing project affects future drafts, and archive
     topic: 'A manual test',
     headline: 'Exact PM supplied headline!',
     body: 'Exact body. No rewriting.',
-    cta: 'Exact call to action',
     visual: 'Exact supplied visual instructions',
     sources: [],
   };
@@ -495,8 +531,7 @@ test('PNG dimensions, artwork/text/logo composition, frozen font references, ove
   assert.ok(story.version.data.fontAssets?.Inter);
   const stripped = structuredClone(story.version.data);
   stripped.layout.logo.visible = false;
-  for (const key of ['headline', 'body', 'cta', 'contact'] as const)
-    stripped.layout[key].visible = false;
+  for (const key of ['headline', 'body'] as const) stripped.layout[key].visible = false;
   assert.notDeepEqual(png, composition.renderPng(stripped));
   stripped.layout.headline.visible = true;
   stripped.layout.headline.text = 'A long story that cannot fit safely at the bottom';
@@ -527,11 +562,22 @@ test('actual route authorization, administrator controls, approved exports, and 
   );
   const adminSession = auth.localAuth.signIn('admin', '9741faso');
   const headers = { 'Content-Type': 'application/json', cookie: `storyloom=${adminSession.token}` };
-  const png = await download(new Request(anonymous, { headers }), {
-    params: Promise.resolve({ version: story.latestVersionId }),
-  });
-  assert.equal(png.status, 200);
+  const get = () =>
+    download(new Request(anonymous, { headers }), {
+      params: Promise.resolve({ version: story.latestVersionId }),
+    });
+  // Downloads default to high-quality JPEG; PNG stays available as a setting.
+  const jpeg = await get();
+  assert.equal(jpeg.status, 200);
+  assert.equal(jpeg.headers.get('Content-Type'), 'image/jpeg');
+  assert.match(jpeg.headers.get('Content-Disposition')!, /_v\d+\.jpg/);
+  const jpegMeta = await sharp(Buffer.from(await jpeg.arrayBuffer())).metadata();
+  assert.deepEqual([jpegMeta.format, jpegMeta.width, jpegMeta.height], ['jpeg', 1080, 1920]);
+  store.setSetting('exportFormat', 'png');
+  const png = await get();
+  assert.equal(png.headers.get('Content-Type'), 'image/png');
   assert.match(png.headers.get('Content-Disposition')!, /_v\d+\.png/);
+  store.setSetting('exportFormat', 'jpeg');
   const zipped = await zipExport(
     new Request('http://localhost:3000/api/export', {
       method: 'POST',
@@ -543,7 +589,7 @@ test('actual route authorization, administrator controls, approved exports, and 
   const zip = await JSZip.loadAsync(await zipped.arrayBuffer());
   const files = Object.keys(zip.files);
   assert.equal(files.length, 1);
-  assert.match(files[0], /story-.*_v\d+\.png/);
+  assert.match(files[0], /story-.*_v\d+\.jpg/);
   const denied = await commandRoute(
     new Request('http://localhost:3000/api/command', {
       method: 'POST',

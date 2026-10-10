@@ -7,6 +7,7 @@ import { localStorage, assetPath } from './storage';
 import { createHash } from 'node:crypto';
 import { setting, setSetting } from './db';
 import { AppError } from './errors';
+import { palette, readable } from './palette';
 export const fontFiles = [
   'Inter',
   'Inter-Bold',
@@ -69,13 +70,23 @@ export function snapshotFonts(project?: Project) {
     ...(brand.bold ? { 'Brand-Bold': brand.bold.id } : {}),
   };
 }
+type TextKey = 'headline' | 'body';
+// Headlines are bold by default; every text layer can override weight, case and spacing.
+export function textStyle(key: TextKey, layer: Layer) {
+  return {
+    bold: layer.bold ?? key === 'headline',
+    lineHeight: layer.lineHeight ?? 1.25,
+    text: layer.uppercase ? layer.text.toLocaleUpperCase() : layer.text,
+  };
+}
 export function wrap(layer: Layer, bold = false, snapshot?: Snapshot) {
   const font = fontFor(layer, bold, snapshot);
   const measure = (s: string) =>
     (font.layout(s).glyphs.reduce((sum, g) => sum + g.advanceWidth, 0) / font.unitsPerEm) *
     layer.size;
   const lines: string[] = [];
-  for (const paragraph of layer.text.split('\n')) {
+  const text = layer.uppercase ? layer.text.toLocaleUpperCase() : layer.text;
+  for (const paragraph of text.split('\n')) {
     let line = '';
     for (const word of paragraph.split(/\s+/).filter(Boolean)) {
       if (measure(word) > layer.width)
@@ -91,43 +102,40 @@ export function wrap(layer: Layer, bold = false, snapshot?: Snapshot) {
   return lines;
 }
 export function defaultLayout(project: Project, script: Script): Layout {
-  const layer = (text: string, y: number, size: number): Layer => ({
+  const colors = palette(project.colors);
+  const ink = readable(colors.text, colors.background);
+  const layer = (text: string, y: number, size: number, color = ink): Layer => ({
     text,
     x: 90,
     y,
     width: 900,
     size,
-    color: '#172420',
+    color,
     font: project.font,
     align: 'left',
     visible: !!text,
   });
+  // Stories alternate between text at the top and text near the bottom of the frame.
+  const bottom = script.placement === 'bottom';
   return {
-    headline: layer(script.headline, 340, 88),
-    body: layer(script.body, 670, 37),
-    cta: layer(script.cta, 1650, 29),
-    contact: layer(
-      [project.website, project.email, project.phone, project.address, project.location]
-        .filter(Boolean)
-        .join(' · '),
-      1730,
-      23,
-    ),
+    headline: layer(script.headline, bottom ? 1180 : 340, 88),
+    body: layer(script.body, bottom ? 1540 : 670, 37),
     logo: { x: 90, y: 150, width: 200, visible: !!project.logoId },
   };
 }
 export function validateComposition(snapshot: Snapshot) {
   const errors: string[] = [];
-  for (const key of ['headline', 'body', 'cta', 'contact'] as const) {
+  for (const key of ['headline', 'body'] as const) {
     const layer = snapshot.layout[key];
     if (!layer.visible || !layer.text) continue;
     try {
-      const lines = wrap(layer, key === 'headline', snapshot);
+      const style = textStyle(key, layer);
+      const lines = wrap(layer, style.bold, snapshot);
       if (
         layer.x < 60 ||
         layer.y < 100 ||
         layer.x + layer.width > 1020 ||
-        layer.y + lines.length * layer.size * 1.25 > 1820
+        layer.y + lines.length * layer.size * style.lineHeight > 1820
       )
         errors.push(
           `${key}: text extends outside the safe area. Reduce the font size or move the layer.`,
@@ -176,22 +184,26 @@ function fontFaces(snapshot: Snapshot) {
   });
   return [...frozen, ...builtIn];
 }
-export function renderSvg(snapshot: Snapshot) {
+export type Part = 'background' | 'headline' | 'body' | 'logo';
+const allParts: Part[] = ['background', 'headline', 'body', 'logo'];
+// Videos animate each part on its own, so the renderer can draw any subset of the story.
+export function renderSvg(snapshot: Snapshot, parts: Part[] = allParts) {
   const css = fontFaces(snapshot)
     .map(
       (face) =>
         `@font-face{font-family:'${face.family.replace(/['"\\<>&]/g, '')}';font-weight:${face.weight};src:url(data:font/${face.file.endsWith('.otf') ? 'otf' : 'ttf'};base64,${fs.readFileSync(/* turbopackIgnore: true */ face.file).toString('base64')});}`,
     )
     .join('');
-  const layers = (['headline', 'body', 'cta', 'contact'] as const)
+  const layers = (['headline', 'body'] as const)
     .map((key) => {
       const layer = snapshot.layout[key];
-      if (!layer.visible) return '';
+      if (!layer.visible || !parts.includes(key)) return '';
+      const style = textStyle(key, layer);
       let lines: string[];
       try {
-        lines = wrap(layer, key === 'headline', snapshot);
+        lines = wrap(layer, style.bold, snapshot);
       } catch {
-        lines = [layer.text];
+        lines = [style.text];
       }
       const x =
         layer.align === 'center'
@@ -199,22 +211,22 @@ export function renderSvg(snapshot: Snapshot) {
           : layer.align === 'right'
             ? layer.x + layer.width
             : layer.x;
-      return `<text font-family="${xml(familyFor(layer, key === 'headline', snapshot))}" font-size="${layer.size}" font-weight="${key === 'headline' ? 700 : 400}" fill="${xml(layer.color)}" text-anchor="${layer.align === 'center' ? 'middle' : layer.align === 'right' ? 'end' : 'start'}">${lines.map((line, i) => `<tspan x="${x}" y="${layer.y + layer.size + i * layer.size * 1.25}">${xml(line)}</tspan>`).join('')}</text>`;
+      return `<text font-family="${xml(familyFor(layer, style.bold, snapshot))}" font-size="${layer.size}" font-weight="${style.bold ? 700 : 400}" fill="${xml(layer.color)}"${layer.shadow ? ' filter="url(#shadow)"' : ''} text-anchor="${layer.align === 'center' ? 'middle' : layer.align === 'right' ? 'end' : 'start'}">${lines.map((line, i) => `<tspan x="${x}" y="${layer.y + layer.size + i * layer.size * style.lineHeight}">${xml(line)}</tspan>`).join('')}</text>`;
     })
     .join('');
   const logo = snapshot.layout.logo;
   let logoSvg = '';
-  if (logo.visible && snapshot.logoId) {
+  if (logo.visible && snapshot.logoId && parts.includes('logo')) {
     const asset = localStorage.read(snapshot.logoId);
     logoSvg = `<image href="${uri(snapshot.logoId)}" x="${logo.x}" y="${logo.y}" width="${logo.width}" height="${(logo.width * asset.height) / asset.width}"/>`;
   }
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920"><style>${css}</style><image href="${uri(snapshot.backgroundId)}" width="1080" height="1920"/>${logoSvg}${layers}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920"><style>${css}</style><defs><filter id="shadow" x="-10%" y="-10%" width="120%" height="140%"><feDropShadow dx="0" dy="3" stdDeviation="6" flood-color="#000" flood-opacity="0.45"/></filter></defs>${parts.includes('background') ? `<image href="${uri(snapshot.backgroundId)}" width="1080" height="1920"/>` : ''}${logoSvg}${layers}</svg>`;
 }
-export function renderPng(snapshot: Snapshot) {
+export function renderPng(snapshot: Snapshot, parts: Part[] = allParts) {
   const errors = validateComposition(snapshot);
   if (errors.length) throw new AppError(errors.join(' '));
   return Buffer.from(
-    new Resvg(renderSvg(snapshot), {
+    new Resvg(renderSvg(snapshot, parts), {
       font: {
         loadSystemFonts: false,
         fontFiles: fontFaces(snapshot).map((face) => face.file),
